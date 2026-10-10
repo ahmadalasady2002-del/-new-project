@@ -48,12 +48,6 @@
 
   // يرجع عنصر HTML للسؤال
   function render(cat, item) {
-    if (cat.type === 'emoji') {
-      const d = document.createElement('div');
-      d.className = 'emoji-q';
-      d.textContent = item.q;
-      return d;
-    }
     if (cat.type === 'logo') {
       const ns = 'http://www.w3.org/2000/svg';
       const svg = document.createElementNS(ns, 'svg');

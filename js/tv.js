@@ -10,7 +10,7 @@
   const WHEEL_MS = 4200;
 
   const S = {
-    selected: new Set(['flags', 'apps', 'players', 'emoji']),
+    selected: new Set(['flags', 'apps', 'cars', 'players']),
     settings: { time: 45, target: 3, mode: 'normal', play: 'wheel' },
     teams: [{ name: '', time: 45, wins: 0 }, { name: '', time: 45, wins: 0 }],
     cats: [], cat: null, item: null,
