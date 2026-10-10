@@ -37,18 +37,22 @@
   function connect() {
     if (conn && conn.open) return;
     status('جاري الاتصال…');
-    conn = peer.connect(ST.PREFIX + room, { reliable: true });
-    conn.on('open', () => {
+    if (conn) { const old = conn; conn = null; try { old.close(); } catch (e) { /* ignore */ } }
+    const c = peer.connect(ST.PREFIX + room, { reliable: true });
+    conn = c;
+    c.on('open', () => {
+      if (c !== conn) return;
       clearTimeout(retry);
       status('متصل', true);
       $('#r-hint').textContent = '';
       conn.send({ cmd: 'hello' });
     });
-    conn.on('data', msg => {
+    c.on('data', msg => {
+      if (c !== conn) return;
       if (msg && msg.type === 'state') { state = msg; render(); }
     });
-    conn.on('close', () => { status('انقطع الاتصال'); scheduleRetry(); });
-    conn.on('error', () => scheduleRetry());
+    c.on('close', () => { if (c !== conn) return; status('انقطع الاتصال'); scheduleRetry(); });
+    c.on('error', () => { if (c === conn) scheduleRetry(); });
   }
 
   function scheduleRetry() {
@@ -59,6 +63,13 @@
       else connect();
     }, 2500);
   }
+
+  // نبضة حتى الشاشة تعرف إننا بعدنا متصلين
+  setInterval(() => { if (conn && conn.open) conn.send({ cmd: 'ping' }); }, 3000);
+  // إذا الحكم سكّر الصفحة نبلغ الشاشة فوراً
+  window.addEventListener('pagehide', () => {
+    if (conn && conn.open) { try { conn.send({ cmd: 'bye', from: peer.id }); } catch (e) { /* ignore */ } }
+  });
 
   // لما يرجع الموبايل من وضع السكون نتأكد من الاتصال
   document.addEventListener('visibilitychange', () => {

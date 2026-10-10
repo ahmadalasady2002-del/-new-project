@@ -77,7 +77,7 @@
   // نسخة من كل تصنيف مختار مع "رزمة" أسئلة مخلوطة
   async function prepareCategories() {
     const chosen = allCategories().filter(c => S.selected.has(c.id))
-      .map(c => ({ ...c, items: c.items.map(it => ({ ...it })) }));
+      .map(c => Object.assign({}, c, { items: c.items.map(it => Object.assign({}, it)) }));
     const failed = [];
     for (const c of chosen) {
       if (c.type === 'wiki') {
@@ -114,7 +114,10 @@
 
   // ---------- الاتصال بالحكم (PeerJS) ----------
   function remoteUrl() {
-    const u = new URL('remote.html', location.href);
+    // إذا الرابط مثل .../-new-project (بدون / بالآخر) نضيفها حتى remote.html يطلع بنفس المجلد
+    let base = location.origin + location.pathname;
+    if (!/\/$|\.html?$/.test(base)) base += '/';
+    const u = new URL('remote.html', base);
     const q = ST.peerQuery();
     q.set('room', S.code);
     u.search = q.toString();
@@ -144,6 +147,7 @@
     peer.on('open', () => { sessionStorage.setItem('st-room', S.code); renderQr(); });
     peer.on('connection', conn => {
       conn.on('open', () => {
+        conn.lastSeen = performance.now();
         S.refs.add(conn);
         sfx.join();
         toast('تم دخول الحكم ✓');
@@ -151,14 +155,16 @@
         updateRefUi();
         if ($('#s-join').classList.contains('active')) setTimeout(startGame, 900);
       });
-      conn.on('data', onCommand);
+      conn.on('data', msg => { conn.lastSeen = performance.now(); onCommand(msg); });
       const drop = () => {
+        try { conn.close(); } catch (e) { /* ignore */ }
         if (!S.refs.delete(conn)) return;
         updateRefUi();
         if (!S.refs.size && S.phase !== 'setup') toast('الحكم انقطع — يگدر يرجع يصوّر الـQR');
       };
       conn.on('close', drop);
       conn.on('error', drop);
+      conn.drop = drop;
     });
     peer.on('disconnected', () => setTimeout(() => !peer.destroyed && peer.reconnect(), 2000));
     peer.on('error', err => {
@@ -174,6 +180,13 @@
       }
     });
   }
+
+  // الموبايل يرسل نبضة كل 3 ثواني؛ إذا انقطعت 10 ثواني نعتبر الحكم طلع
+  // (لأن WebRTC ممكن يتأخر هواية قبل ما يحس إن الاتصال انقطع)
+  setInterval(() => {
+    const now = performance.now();
+    S.refs.forEach(c => { if (now - (c.lastSeen || 0) > 10000 && c.drop) c.drop(); });
+  }, 2000);
 
   function updateRefUi() {
     document.body.classList.toggle('has-ref', S.refs.size > 0);
@@ -197,6 +210,8 @@
     if (!msg || typeof msg !== 'object') return;
     switch (msg.cmd) {
       case 'hello': broadcast(); break;
+      case 'ping': break;
+      case 'bye': S.refs.forEach(c => { if (c.lastSeen && c.drop && c.peer === msg.from) c.drop(); }); break;
       case 'spin': spin(); break;
       case 'correct': correct(); break;
       case 'skip': skip(); break;
@@ -365,6 +380,7 @@
     return s.replace(/[<>&"]/g, ch => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[ch]));
   }
 
+  let spinToken = 0;
   function spin() {
     if (S.phase !== 'wheel') return;
     sfx.unlock();
@@ -382,13 +398,14 @@
     const cur = S.wheelRot;
     const want = ((-center - jitter - cur) % 360 + 720) % 360;
     S.wheelRot = cur + 360 * 5 + want;
+    const spinId = ++spinToken;
     setWheelRotation(true);
     setPhase('spinning');
     // تكات العجلة تبطئ تدريجياً
     let t = 0;
     (function tick() {
       const p = t / WHEEL_MS;
-      if (p >= 0.95) return;
+      if (p >= 0.95 || spinId !== spinToken) return;
       sfx.wheelTick();
       const gap = 40 + 400 * p * p;
       t += gap;
@@ -398,7 +415,7 @@
       $('#wheel-wrap').classList.add('picked');
       setTimeout(() => {
         $('#wheel-wrap').classList.remove('picked');
-        if (S.phase !== 'spinning') return;   // انلغت اللعبة وهي دتدور
+        if (S.phase !== 'spinning' || spinId !== spinToken) return;   // انلغت اللعبة وهي دتدور
         S.cat = S.cats[idx];
         setPhase('play');
         nextQuestion();
@@ -510,7 +527,7 @@
   }
 
   function togglePause() {
-    if (!['play', 'wheel'].includes(S.phase)) return;
+    if (S.phase !== 'play') return;
     S.paused = !S.paused;
     if (S.effect) S.paused ? S.effect.pause() : S.effect.play();
     lastTick = performance.now();
@@ -571,6 +588,7 @@
   function cancelGame() {
     if (S.phase === 'setup') return;
     qToken++;
+    spinToken++;
     S.busy = false;
     S.paused = false;
     S.item = null;
