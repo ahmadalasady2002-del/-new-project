@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>شوتايم — الحكم</title>
+  <meta name="theme-color" content="#0a0e1c">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&family=Lalezar&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="remote">
+  <main class="r-wrap">
+    <header class="r-head">
+      <h1>أنت الحكم</h1>
+      <span class="pill" id="r-status">جاري الاتصال…</span>
+    </header>
+
+    <section class="r-card" id="r-answer-card">
+      <span class="muted small" id="r-label">الجواب الحالي</span>
+      <div class="r-answer" id="r-answer">—</div>
+      <span class="muted small" id="r-cat"></span>
+    </section>
+
+    <div class="r-actions">
+      <button class="r-btn ok" id="r-correct">صحيح</button>
+      <button class="r-btn warn" id="r-skip">تخطّي <small dir="ltr">−3s</small></button>
+      <button class="r-btn spin" id="r-spin">دوّر العجلة</button>
+      <button class="r-btn spin" id="r-next">الجولة الجاية</button>
+    </div>
+
+    <div class="r-teams">
+      <div class="r-team" id="rt0"><span class="n"></span><b class="t"></b><span class="d"></span></div>
+      <div class="r-team" id="rt1"><span class="n"></span><b class="t"></b><span class="d"></span></div>
+    </div>
+
+    <button class="r-btn ghost" id="r-pause">إيقاف مؤقت</button>
+    <p class="muted small center" id="r-hint"></p>
+  </main>
+
+  <script src="vendor/peerjs.min.js"></script>
+  <script src="js/common.js"></script>
+  <script src="js/remote.js"></script>
+</body>
+</html>
