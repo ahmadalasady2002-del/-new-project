@@ -261,34 +261,103 @@
   }
 
   // ---------- العجلة ----------
-  const WHEEL_COLORS = ['#c9b8f5', '#7fd3df', '#a98be8', '#5fbfd0', '#d6c8f8', '#93dde6', '#b59cf0', '#6cc6d6'];
+  // القطع مرسومة SVG، والكتابة HTML فوقها. الكتابة تلف ويا العجلة بس تبقى دايماً عدلة
+  // (تنلف بعكس العجلة)، وحجمها ينحسب حتى تبقى داخل الدائرة اللي تنرسم جوه كل قطعة.
+  const WHEEL_COLORS = ['#c9b8f5', '#7fd3df', '#a98be8', '#5fbfd0'];
+  const WR = 190;           // نصف قطر العجلة بوحدات الـviewBox (العرض الكلي 400)
+  const HUB = 52;           // نصف قطر الدائرة اللي بالنص + هامش
+  const SPIN_EASE = 'cubic-bezier(.17,.67,.12,1)';
+  const measureCtx = document.createElement('canvas').getContext('2d');
+
+  function textWidth(t, px) {
+    measureCtx.font = `800 ${px}px Cairo, system-ui, sans-serif`;
+    return measureCtx.measureText(t).width;
+  }
+
+  // أكبر خط (بوحدات العجلة) يخلي السطور داخل دائرة نصف قطرها rho
+  function fitLabel(icon, name, rho) {
+    const words = name.split(/\s+/);
+    const layouts = [[name]];
+    if (words.length > 1) {
+      // نقسم الاسم سطرين من أقرب مسافة للنص
+      let best = 1, diff = Infinity;
+      for (let k = 1; k < words.length; k++) {
+        const d = Math.abs(words.slice(0, k).join(' ').length - words.slice(k).join(' ').length);
+        if (d < diff) { diff = d; best = k; }
+      }
+      layouts.push([words.slice(0, best).join(' '), words.slice(best).join(' ')]);
+    }
+    let pick = null;
+    for (const lines of layouts) {
+      // بخط 10: عرض أعرض سطر، والارتفاع = أيقونة (1.25) + كل سطر 1.25
+      const w = Math.max(14, ...lines.map(l => textWidth(l, 10)));
+      const h = 10 * 1.25 * (lines.length + 1);
+      const k = (rho * 2 * 0.86) / Math.hypot(w, h);   // نسبة التكبير حتى القطر يدخل بالدائرة
+      const fs = Math.min(30, 10 * k);
+      if (!pick || fs > pick.fs) pick = { lines, fs };
+    }
+    return pick;
+  }
 
   function drawWheel() {
-    const svg = $('#wheel');
     const n = S.cats.length;
-    const R = 190;
     const pt = (a, r) => [r * Math.sin(a * Math.PI / 180), -r * Math.cos(a * Math.PI / 180)];
-    let html = '<g id="wheel-rot">';
+    // الدائرة الأكبر اللي تدخل جوه القطعة (بين المركز والحافة)
+    const half = Math.PI / n;
+    let d = n === 1 ? 0 : WR / (1 + Math.sin(half));
+    let rho = n === 1 ? WR * 0.6 : d * Math.sin(half);
+    if (n > 1 && d - rho < HUB) { d = (WR + HUB) / 2; rho = Math.min(d * Math.sin(half), (WR - HUB) / 2); }
+    if (n === 1) { d = (WR + HUB) / 2; rho = (WR - HUB) / 2; }
+
+    // كل الكتابات بنفس الحجم (حجم أصغر وحدة) حتى تبين مرتبة
+    const fits = S.cats.map(c => fitLabel(c.icon, c.short || c.name, rho));
+    const fsAll = Math.min(...fits.map(f => f.fs));
+    let svg = '';
+    let labels = '';
     S.cats.forEach((c, i) => {
       const a0 = i * 360 / n, a1 = (i + 1) * 360 / n, mid = (a0 + a1) / 2;
-      const col = WHEEL_COLORS[(n % 2 && i === n - 1 && n > 1) ? 2 : i % WHEEL_COLORS.length];
+      // عدد فردي: آخر قطعة لون ثالث حتى ما تتلاصق قطعتين بنفس اللون
+      const col = WHEEL_COLORS[(n % 2 && n > 1 && i === n - 1) ? 2 : i % 2];
       if (n === 1) {
-        html += `<circle r="${R}" fill="${col}"/>`;
+        svg += `<circle r="${WR}" fill="${col}"/>`;
       } else {
-        const [x0, y0] = pt(a0, R), [x1, y1] = pt(a1, R);
-        html += `<path d="M0 0L${x0} ${y0}A${R} ${R} 0 ${a1 - a0 > 180 ? 1 : 0} 1 ${x1} ${y1}Z" fill="${col}"/>`;
+        const [x0, y0] = pt(a0, WR), [x1, y1] = pt(a1, WR);
+        svg += `<path d="M0 0L${x0.toFixed(2)} ${y0.toFixed(2)}A${WR} ${WR} 0 ${a1 - a0 > 180 ? 1 : 0} 1 ${x1.toFixed(2)} ${y1.toFixed(2)}Z" fill="${col}" stroke="#0a0e1c" stroke-opacity=".25" stroke-width="1.5"/>`;
       }
-      // الكتابة تمشي من المركز للحافة، وبالنص اليسار نقلبها حتى ما تطلع مگلوبة
-      const label = c.icon + ' ' + (c.short || c.name);
-      const [tx, ty] = pt(mid, R * 0.6);
-      const rot = mid <= 180 ? mid - 90 : mid + 90;
-      const fs = Math.min(22, 125 / (label.length * 0.55), n > 1 ? (2 * Math.PI * R * 0.6 / n) * 0.45 : 22);
-      html += `<text x="${tx}" y="${ty}" transform="rotate(${rot} ${tx} ${ty})" font-size="${fs.toFixed(1)}">${escapeXml(label)}</text>`;
+      const [x, y] = pt(n === 1 ? 180 : mid, d);
+      const { lines } = fits[i];
+      const fs = fsAll;
+      labels += `<div class="wl" style="left:${(50 + x / 4).toFixed(3)}%;top:${(50 + y / 4).toFixed(3)}%">`
+        + `<div class="wl-in" style="font-size:calc(var(--wu) * ${fs.toFixed(2)})">`
+        + `<span class="wl-ic">${escapeXml(c.icon)}</span>`
+        + lines.map(l => `<span>${escapeXml(l)}</span>`).join('')
+        + '</div></div>';
     });
-    html += '</g>';
-    svg.innerHTML = html;
-    $('#wheel-rot').style.transform = `rotate(${S.wheelRot}deg)`;
+    $('#wheel').innerHTML = svg;
+    $('#wheel-labels').innerHTML = labels;
+    setWheelRotation(false);
   }
+
+  function setWheelRotation(animate) {
+    const spinEl = $('#wheel-spin');
+    const tr = animate ? `transform ${WHEEL_MS}ms ${SPIN_EASE}` : 'none';
+    spinEl.style.transition = tr;
+    spinEl.style.transform = `rotate(${S.wheelRot}deg)`;
+    $$('#wheel-labels .wl-in').forEach(el => {
+      el.style.transition = tr;
+      el.style.transform = `translate(-50%, -50%) rotate(${-S.wheelRot}deg)`;
+    });
+  }
+
+  // وحدة العجلة بالبكسل حتى الخط يكبر ويصغر ويا حجم العجلة
+  function syncWheelUnit() {
+    const w = $('#wheel-wrap').getBoundingClientRect().width;
+    if (w) $('#wheel-wrap').style.setProperty('--wu', (w / 400) + 'px');
+  }
+  window.addEventListener('resize', syncWheelUnit);
+  if (window.ResizeObserver) new ResizeObserver(syncWheelUnit).observe($('#wheel-wrap'));
+  // إذا الخط وصل متأخر نعيد الحساب
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => S.cats.length && S.phase !== 'spinning' && drawWheel());
 
   function escapeXml(s) {
     return s.replace(/[<>&"]/g, ch => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[ch]));
@@ -304,9 +373,7 @@
     const cur = S.wheelRot;
     const want = ((-center - jitter - cur) % 360 + 720) % 360;
     S.wheelRot = cur + 360 * 5 + want;
-    const g = $('#wheel-rot');
-    g.style.transition = `transform ${WHEEL_MS}ms cubic-bezier(.17,.67,.12,1)`;
-    g.style.transform = `rotate(${S.wheelRot}deg)`;
+    setWheelRotation(true);
     setPhase('spinning');
     // تكات العجلة تبطئ تدريجياً
     let t = 0;
