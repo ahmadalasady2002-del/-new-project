@@ -37,13 +37,13 @@
         <li>تنقسمون <b>فريقين</b>، وواحد يصير <b>الحكم</b> ويمسك موبايله.</li>
         <li>تختارون التصنيفات اللي تحبونها، وتسمّون الفرق.</li>
         <li>الحكم يصوّر الـ<b>QR</b> اللي يطلع عالشاشة، فيصير موبايله ريموت ويشوف الجواب الصحيح.</li>
-        <li>الحكم يدوّر <b>العجلة</b> وتختار التصنيف.</li>
+        <li>الحكم يدوّر <b>العجلة</b> وتختار التصنيف. أو اختاروا <b>مختلط</b> وكل صورة تطلع من تصنيف.</li>
         <li>كل فريق عنده <b>وقت خاص بيه</b> (٤٥ ثانية مثلاً). الوقت ينزل بس للفريق اللي دوره.</li>
         <li>تطلع صورة. إذا جاوبتوا صح، الحكم يدوس <b>صحيح</b> وينتقل الدور للفريق الثاني.</li>
         <li>ما تعرفونها؟ الحكم يدوس <b>تخطّي</b>، وتنخصم منكم <b>٣ ثواني</b> وتطلع صورة ثانية.</li>
         <li>الفريق اللي يخلص وقته أول <b>يخسر الجولة</b>. اللي يفوز بعدد الجولات المطلوب ياخذ اللعبة.</li>
       </ol>
-      <p class="muted">ما عندكم موبايل للحكم؟ تگدرون تلعبون من نفس الجهاز: <b>Enter</b> = صحيح، <b>S</b> = تخطّي، <b>W</b> = دوّر العجلة، <b>P</b> = إيقاف مؤقت.</p>
+      <p class="muted">ما عندكم موبايل للحكم؟ تگدرون تلعبون من نفس الجهاز: <b>Enter</b> = صحيح، <b>S</b> = تخطّي، <b>W</b> = دوّر العجلة أو ابدأ الجولة، <b>P</b> = إيقاف مؤقت.</p>
       <button class="btn primary" data-go="s-title">رجوع</button>
     </div>
   </section>
@@ -70,6 +70,7 @@
       <div class="settings">
         <div class="setting"><span>وقت كل فريق</span><div class="seg" data-key="time"><button data-v="30">30</button><button data-v="45">45</button><button data-v="60">60</button><button data-v="90">90</button></div></div>
         <div class="setting"><span>الجولات للفوز</span><div class="seg" data-key="target"><button data-v="1">1</button><button data-v="2">2</button><button data-v="3">3</button><button data-v="5">5</button></div></div>
+        <div class="setting"><span>طريقة اللعب</span><div class="seg" data-key="play"><button data-v="wheel">العجلة</button><button data-v="mixed">مختلط 🎲</button></div></div>
         <div class="setting"><span>عرض الصور</span><div class="seg" data-key="mode"><button data-v="normal">عادي</button><button data-v="blur">مضبب</button><button data-v="zoom">زوم</button></div></div>
       </div>
       <div class="btn-row">
@@ -111,6 +112,13 @@
         <button class="wheel-hub" id="wheel-hub">دوّر</button>
       </div>
 
+      <div id="mixed-card" class="mixed-card">
+        <div class="mixed-dice">🎲</div>
+        <h2>مختلط</h2>
+        <p class="muted">كل التصنيفات سوه — كل صورة من تصنيف</p>
+        <button class="btn primary big" id="mixed-start">ابدأ الجولة</button>
+      </div>
+
       <div id="card" class="q-card">
         <div class="q-prompt" id="q-prompt"></div>
         <div class="q-media" id="q-media"></div>
@@ -133,6 +141,7 @@
       <button class="btn ok" id="lc-correct">صحيح</button>
       <button class="btn warn" id="lc-skip">تخطّي −3</button>
       <button class="btn ghost" id="lc-pause">إيقاف</button>
+      <button class="btn ghost" id="lc-cancel">إلغاء اللعبة</button>
       <span class="ref-qr-mini" id="ref-mini" title="دخول الحكم">QR</span>
     </footer>
     <div class="toast" id="toast"></div>
@@ -167,6 +176,7 @@
   <script src="vendor/peerjs.min.js"></script>
   <script src="vendor/qrcode.js"></script>
   <script src="js/data/countries.js"></script>
+  <script src="js/data/logos.js"></script>
   <script src="js/data/content.js"></script>
   <script src="js/common.js"></script>
   <script src="js/store.js"></script>

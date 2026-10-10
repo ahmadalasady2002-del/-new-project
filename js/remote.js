@@ -76,6 +76,9 @@
   $('#r-spin').addEventListener('click', () => send('spin'));
   $('#r-next').addEventListener('click', () => send('next'));
   $('#r-pause').addEventListener('click', () => send('pause'));
+  $('#r-cancel').addEventListener('click', () => {
+    if (confirm('متأكد تريد تلغي اللعبة وترجع للبداية؟')) send('cancel');
+  });
 
   function render() {
     const p = state ? state.phase : 'none';
@@ -86,8 +89,8 @@
       label.textContent = 'الجواب الحالي';
       ans.textContent = state.answer || '…';
     } else if (p === 'wheel') {
-      label.textContent = 'دوّر العجلة حتى تبدي الجولة';
-      ans.textContent = '🎡';
+      label.textContent = state.mixed ? 'اضغط «ابدأ الجولة» حتى تبدي' : 'دوّر العجلة حتى تبدي الجولة';
+      ans.textContent = state.mixed ? '🎲' : '🎡';
     } else if (p === 'spinning') {
       label.textContent = 'العجلة دتدور…';
       ans.textContent = '🎡';
@@ -103,6 +106,7 @@
     }
     $('#r-cat').textContent = state && state.category ? 'التصنيف: ' + state.category : '';
     $('#r-next').textContent = p === 'gameEnd' ? 'لعبة جديدة' : 'الجولة الجاية';
+    $('#r-spin').textContent = state && state.mixed ? 'ابدأ الجولة 🎲' : 'دوّر العجلة';
     $('#r-pause').textContent = state && state.paused ? 'كمّل' : 'إيقاف مؤقت';
 
     if (state) {

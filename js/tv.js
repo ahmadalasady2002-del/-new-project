@@ -10,8 +10,8 @@
   const WHEEL_MS = 4200;
 
   const S = {
-    selected: new Set(['flags', 'maps', 'players', 'emoji']),
-    settings: { time: 45, target: 3, mode: 'normal' },
+    selected: new Set(['flags', 'apps', 'players', 'emoji']),
+    settings: { time: 45, target: 3, mode: 'normal', play: 'wheel' },
     teams: [{ name: '', time: 45, wins: 0 }, { name: '', time: 45, wins: 0 }],
     cats: [], cat: null, item: null,
     phase: 'setup', turn: 0, roundStarter: 0,
@@ -95,7 +95,7 @@
     const sync = () => seg.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === String(S.settings[key])));
     seg.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
       sfx.click();
-      S.settings[key] = key === 'mode' ? b.dataset.v : Number(b.dataset.v);
+      S.settings[key] = (key === 'mode' || key === 'play') ? b.dataset.v : Number(b.dataset.v);
       sync();
     }));
     sync();
@@ -187,7 +187,7 @@
       answer: S.phase === 'play' && S.item ? S.item.a : '',
       lastAnswer: S.lastAnswer, winner: S.lastWinner,
       category: S.cat ? S.cat.name : '',
-      turn: S.turn, target: S.settings.target,
+      turn: S.turn, target: S.settings.target, mixed: S.settings.play === 'mixed',
       teams: S.teams.map(t => ({ name: t.name, time: Math.max(0, Math.ceil(t.time)), wins: t.wins })),
     };
     S.refs.forEach(c => { try { c.open && c.send(st); } catch (e) { console.warn(e); } });
@@ -202,6 +202,7 @@
       case 'skip': skip(); break;
       case 'pause': togglePause(); break;
       case 'next': next(); break;
+      case 'cancel': cancelGame(); break;
     }
   }
 
@@ -222,6 +223,7 @@
     S.teams.forEach(t => { t.wins = 0; });
     S.roundStarter = 1;      // nextRound يقلبها، فالجولة الأولى يبدي الفريق 1
     show('s-game');
+    $('#s-game').classList.toggle('mixed', S.settings.play === 'mixed');
     drawWheel();
     nextRound();
   }
@@ -366,6 +368,13 @@
   function spin() {
     if (S.phase !== 'wheel') return;
     sfx.unlock();
+    // مختلط: بدون عجلة، كل سؤال من تصنيف عشوائي
+    if (S.settings.play === 'mixed') {
+      sfx.click();
+      setPhase('play');
+      nextQuestion();
+      return;
+    }
     const n = S.cats.length;
     const idx = Math.floor(Math.random() * n);
     const center = (idx + 0.5) * 360 / n;
@@ -389,6 +398,7 @@
       $('#wheel-wrap').classList.add('picked');
       setTimeout(() => {
         $('#wheel-wrap').classList.remove('picked');
+        if (S.phase !== 'spinning') return;   // انلغت اللعبة وهي دتدور
         S.cat = S.cats[idx];
         setPhase('play');
         nextQuestion();
@@ -397,6 +407,12 @@
   }
 
   // ---------- الأسئلة ----------
+  // بالمختلط ناخذ تصنيف عشوائي، ونتجنب نفس التصنيف مرتين ورا بعض
+  function pickMixed() {
+    const pool = S.cats.length > 1 ? S.cats.filter(c => c !== S.cat) : S.cats;
+    return pool[Math.floor(Math.random() * pool.length)];
+  }
+
   function drawItem(cat) {
     if (!cat.deck.length) cat.deck = shuffle(cat.items.slice());
     return cat.deck.pop();
@@ -406,7 +422,9 @@
   async function nextQuestion() {
     const token = ++qToken;
     S.busy = true;
+    if (S.settings.play === 'mixed') S.cat = pickMixed();
     const cat = S.cat;
+    renderHud();
     let item = null;
     // نجرب لحد 6 مرات إذا صورة ما تحملت
     for (let tries = 0; tries < 6; tries++) {
@@ -549,6 +567,19 @@
     nextRound();
   }
 
+  // الحكم (أو الشاشة) يلغي اللعبة ونرجع للبداية
+  function cancelGame() {
+    if (S.phase === 'setup') return;
+    qToken++;
+    S.busy = false;
+    S.paused = false;
+    S.item = null;
+    if (S.effect) { S.effect.cancel(); S.effect = null; }
+    S.teams.forEach(t => { t.wins = 0; });
+    toast('انلغت اللعبة');
+    toMenu();
+  }
+
   function toMenu() {
     S.phase = 'setup';
     S.cat = null;
@@ -612,6 +643,8 @@
   $('#lc-correct').addEventListener('click', correct);
   $('#lc-skip').addEventListener('click', skip);
   $('#lc-pause').addEventListener('click', togglePause);
+  $('#lc-cancel').addEventListener('click', () => { if (confirm('تريدون تلغون اللعبة وترجعون للبداية؟')) cancelGame(); });
+  $('#mixed-start').addEventListener('click', spin);
   $('#ref-mini').addEventListener('click', () => {
     initPeer();
     const pop = document.createElement('div');

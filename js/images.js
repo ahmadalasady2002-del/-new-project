@@ -40,7 +40,7 @@
   }
 
   function imageSrc(cat, item) {
-    if (cat.type === 'flag') return 'assets/flags/' + item.c + '.svg';
+    if (cat.type === 'flag' || cat.type === 'capital') return 'assets/flags/' + item.c + '.svg';
     if (cat.type === 'wiki') return item.img;
     if (cat.type === 'custom') return item.src;
     return null;
@@ -52,6 +52,28 @@
       const d = document.createElement('div');
       d.className = 'emoji-q';
       d.textContent = item.q;
+      return d;
+    }
+    if (cat.type === 'logo') {
+      const ns = 'http://www.w3.org/2000/svg';
+      const svg = document.createElementNS(ns, 'svg');
+      svg.setAttribute('viewBox', '0 0 24 24');
+      svg.classList.add('logo-q', 'zoomable');
+      const p = document.createElementNS(ns, 'path');
+      p.setAttribute('d', item.d);
+      p.setAttribute('fill', '#' + item.h);
+      svg.appendChild(p);
+      return svg;
+    }
+    if (cat.type === 'capital') {
+      const d = document.createElement('div');
+      d.className = 'capital-q';
+      const im = document.createElement('img');
+      im.src = imageSrc(cat, item);
+      im.alt = '';
+      const n = document.createElement('div');
+      n.textContent = item.q;
+      d.append(im, n);
       return d;
     }
     if (cat.type === 'map') {
