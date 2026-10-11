@@ -339,17 +339,24 @@ body.paused[data-phase="play"] #r-correct, body.paused[data-phase="play"] #r-ski
 .small-btn { font-size: calc(var(--u) * 1.4) !important; padding: .35em 1em; }
 .ov-night { font-size: calc(var(--u) * 1.8); color: var(--gold); margin: 0; font-weight: 700; }
 
-/* السرقة */
-.steal-banner {
+/* انتقال السؤال للفريق الثاني */
+.pass-banner {
   display: none; position: absolute; top: calc(var(--u) * -2.2); left: 50%; transform: translateX(-50%); z-index: 3;
-  background: var(--orange); color: #431407; font-weight: 800; font-size: calc(var(--u) * 2.2);
-  padding: .3em 1.2em; border-radius: 999px; white-space: nowrap; box-shadow: 0 0 30px #fdba7488;
-  animation: pulse .6s infinite alternate;
+  background: var(--cyan); color: #083344; font-weight: 800; font-size: calc(var(--u) * 2.1);
+  padding: .3em 1.2em; border-radius: 999px; white-space: nowrap; box-shadow: 0 0 30px #67d3e088;
 }
-.q-card.stealing .steal-banner { display: block; }
-.q-card.stealing { box-shadow: 0 0 0 4px var(--orange), 0 30px 80px #0009; }
-.team-box.stealer { border-color: var(--orange); box-shadow: 0 0 34px #fdba7466; }
+.q-card.passed .pass-banner { display: block; animation: pop .35s cubic-bezier(.2,1.4,.4,1); }
+.q-card.passed { box-shadow: 0 0 0 4px var(--cyan), 0 30px 80px #0009; }
+.q-card.passed .bonus-badge { display: none; }
 .penalty.gain { color: var(--green); }
+
+/* مهلة الجواب */
+.q-timer {
+  position: absolute; top: calc(var(--u) * 1.4); right: calc(var(--u) * 1.6); z-index: 2;
+  font-weight: 800; font-size: calc(var(--u) * 2.2); color: #334155; background: #e2e8f0;
+  padding: .1em .7em; border-radius: 999px; direction: ltr;
+}
+.q-timer.low { background: var(--red); color: #fff; animation: pulse .5s infinite alternate; }
 
 /* البونص */
 .bonus-badge {
@@ -359,10 +366,9 @@ body.paused[data-phase="play"] #r-correct, body.paused[data-phase="play"] #r-ski
 }
 .q-card.bonus { box-shadow: 0 0 0 4px #f5c76b, 0 0 60px #f5c76b88, 0 30px 80px #0009; }
 .q-card.bonus .bonus-badge { display: block; }
-.q-card.stealing .bonus-badge { display: none; }
 
 /* ريموت: السرقة والبونص */
-body.stealing .r-card { border-color: var(--orange); }
+body.passed .r-card { border-color: var(--cyan); }
 body.bonus .r-card { border-color: var(--gold); box-shadow: 0 0 20px #f5c76b55; }
 .r-btn.mute { font-size: 15px; padding: 10px; background: transparent; }
 

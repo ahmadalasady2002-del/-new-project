@@ -4,23 +4,21 @@
   const $ = s => document.querySelector(s);
   const $$ = s => [...document.querySelectorAll(s)];
 
-  const SKIP_PENALTY = 3;
   const REVEAL_MS = 900;      // مدة عرض ✓ والجواب بعد الإجابة الصحيحة
   const EFFECT_MS = 12000;    // مدة التضبيب/الزوم لحد ما تتوضح الصورة
   const WHEEL_MS = 4200;
-  const STEAL_SECS = 6;       // وقت فرصة السرقة
   const BONUS_SECS = 5;       // ثواني البونص
   const BONUS_CHANCE = 0.12;  // تقريباً سؤال من كل 8
 
   const S = {
     selected: new Set(['flags', 'apps', 'cars', 'players']),
-    settings: { time: 45, target: 3, mode: 'normal', play: 'wheel', steal: 'on', bonus: 'on', teams: 2 },
+    settings: { time: 45, target: 3, mode: 'normal', play: 'wheel', limit: 5, bonus: 'on', teams: 2 },
     teams: [],
     teamNames: ['', '', '', ''],
     cats: [], cat: null, item: null,
     phase: 'setup', turn: 0, roundStarter: 0,
     paused: false, busy: false, lastAnswer: '',
-    steal: null, bonusQ: false,
+    bonusQ: false, tried: new Set(), qLeft: 0, passed: false,
     night: loadNight(),
     wheelRot: 0, effect: null,
     refs: new Set(), peer: null, code: null,
@@ -102,7 +100,7 @@
     const sync = () => seg.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === String(S.settings[key])));
     seg.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
       sfx.click();
-      S.settings[key] = (key === 'time' || key === 'target' || key === 'teams') ? Number(b.dataset.v) : b.dataset.v;
+      S.settings[key] = (key === 'time' || key === 'target' || key === 'teams' || key === 'limit') ? Number(b.dataset.v) : b.dataset.v;
       sync();
       if (key === 'teams') renderTeamInputs();
     }));
@@ -234,7 +232,8 @@
       lastAnswer: S.lastAnswer, winner: S.lastWinner,
       category: S.cat ? S.cat.name : '',
       turn: S.turn, target: S.settings.target, mixed: S.settings.play === 'mixed',
-      steal: S.steal ? { team: S.steal.team, left: Math.max(0, Math.ceil(S.steal.left)) } : null,
+      passed: S.phase === 'play' && S.passed,
+      qLeft: S.phase === 'play' && S.settings.limit ? Math.max(0, Math.ceil(S.qLeft)) : null,
       bonus: S.phase === 'play' && S.bonusQ,
       muted: sfx.muted,
       teams: S.teams.map(t => ({ name: t.name, time: Math.max(0, Math.ceil(t.time)), wins: t.wins, out: !!t.out })),
@@ -284,7 +283,7 @@
     S.roundStarter = (S.roundStarter + 1) % S.teams.length;
     S.turn = S.roundStarter;
     S.teams.forEach(t => { t.time = S.settings.time; t.out = false; });
-    S.cat = null; S.item = null; S.paused = false; S.steal = null; S.bonusQ = false;
+    S.cat = null; S.item = null; S.paused = false; S.passed = false; S.bonusQ = false;
     setPhase('wheel');
   }
 
@@ -334,15 +333,12 @@
       box.querySelector('.t-dots').innerHTML = Array.from({ length: S.settings.target },
         (_, k) => `<i class="${k < t.wins ? 'on' : ''}"></i>`).join('');
       box.classList.toggle('active', S.phase === 'play' && S.turn === i);
-      box.classList.toggle('low', S.phase === 'play' && S.turn === i && sec <= 5 && !S.steal);
-      box.classList.toggle('stealer', !!S.steal && S.steal.team === i);
+      box.classList.toggle('low', S.phase === 'play' && S.turn === i && sec <= 5);
     });
     $('#cat-chip').textContent = S.cat ? 'التصنيف: ' + S.cat.name : '';
     $('#cat-chip').style.visibility = S.cat ? 'visible' : 'hidden';
     $('#s-game').classList.toggle('paused', S.paused);
     $('#lc-pause').textContent = S.paused ? 'كمّل' : 'إيقاف';
-    $('#lc-correct').textContent = S.steal ? 'سرقوها ✓' : 'صحيح';
-    $('#lc-skip').textContent = S.steal ? 'ما عرفوا ✗' : 'تخطّي −3';
     syncMusic();
   }
 
@@ -536,10 +532,13 @@
     if (token !== qToken || S.phase !== 'play') return;
     if (!item) { toast('مشكلة بتحميل الصور'); item = drawItem(cat); }
     S.item = item;
-    S.steal = null;
+    S.tried = new Set();
+    S.passed = false;
+    S.qLeft = S.settings.limit;
+    updateQTimer();
     S.bonusQ = S.settings.bonus === 'on' && Math.random() < BONUS_CHANCE;
     const card = $('#card');
-    card.classList.remove('correct', 'stealing', 'stolen');
+    card.classList.remove('correct', 'passed');
     card.classList.toggle('bonus', S.bonusQ);
     if (S.bonusQ) sfx.bonus();
     $('#q-prompt').textContent = cat.prompt;
@@ -578,7 +577,6 @@
 
   function correct() {
     if (S.phase !== 'play' || S.busy || S.paused || !S.item) return;
-    if (S.steal) { stealSuccess(); return; }
     S.busy = true;
     sfx.correct();
     S.lastAnswer = S.item.a;
@@ -598,63 +596,44 @@
     }, REVEAL_MS);
   }
 
-  function skip() {
+  // تخطّي (أو خلصت مهلة الجواب): نفس السؤال ينتقل للفريق اللي بعده بدون خصم وقت.
+  // إذا كل الفرق جرّبته وما عرفوه، يطلع سؤال جديد للفريق الجاي.
+  function skip() { passQuestion(false); }
+
+  function passQuestion(auto) {
     if (S.phase !== 'play' || S.busy || S.paused || !S.item) return;
-    if (S.steal) { stealFail(); return; }
-    sfx.skip();
+    S.tried.add(S.turn);
     S.lastAnswer = S.item.a;
-    const t = S.teams[S.turn];
-    t.time -= SKIP_PENALTY;
-    flash(S.turn, '−' + SKIP_PENALTY + 's');
-    renderHud();
-    if (t.time <= 0) { teamOut(); return; }
-    if (S.settings.steal === 'on') { startSteal(); return; }
-    toast('الجواب كان: ' + S.item.a, 1600);
-    nextQuestion();
-  }
-
-  // ---------- السرقة ----------
-  // بعد التخطّي، الفريق الثاني عنده ثواني قليلة يجاوب نفس الصورة.
-  // وقت الفريقين واگف خلال السرقة.
-  function startSteal() {
-    S.steal = { team: nextAlive(S.turn), left: STEAL_SECS };
-    sfx.steal();
-    $('#card').classList.add('stealing');
-    updateStealBanner();
+    const next = nextAlive(S.turn);
+    if (next === S.turn || S.tried.has(next)) {
+      sfx.skip();
+      toast('محد عرفها 🤷 الجواب: ' + S.item.a, 2200);
+      S.turn = next;
+      renderHud();
+      nextQuestion();
+      return;
+    }
+    sfx.pass();
+    S.turn = next;
+    S.qLeft = S.settings.limit;
+    S.passed = true;
+    const card = $('#card');
+    $('#pass-banner').textContent = (auto ? '⏰ خلصت المهلة — ' : '') + '↪️ السؤال انتقل لـ ' + S.teams[next].name;
+    card.classList.remove('passed'); void card.offsetWidth; card.classList.add('passed');
+    updateQTimer();
     renderHud();
     broadcast();
   }
 
-  function updateStealBanner() {
-    if (!S.steal) return;
-    $('#steal-banner').textContent = `🥷 فرصة سرقة لـ ${S.teams[S.steal.team].name} — ${Math.max(0, Math.ceil(S.steal.left))}`;
-  }
-
-  function stealSuccess() {
-    const thief = S.steal.team;
-    const gain = SKIP_PENALTY + (S.bonusQ ? BONUS_SECS : 0);
-    S.busy = true;
-    sfx.correct();
-    S.teams[thief].time += gain;
-    flash(thief, '+' + gain + 's', 'gain');
-    S.lastAnswer = S.item.a;
-    if (S.effect) S.effect.finish();
-    $('#q-answer').textContent = '🥷 سرقوها! ' + S.item.a;
-    $('#card').classList.remove('stealing');
-    $('#card').classList.add('correct', 'stolen');
-    S.steal = null;
-    renderHud();
-    broadcast();
-    setTimeout(() => { if (S.phase === 'play') nextQuestion(); }, REVEAL_MS + 300);
-  }
-
-  function stealFail() {
-    S.lastAnswer = S.item.a;
-    S.steal = null;
-    $('#card').classList.remove('stealing');
-    toast('الجواب كان: ' + S.item.a, 1600);
-    renderHud();
-    nextQuestion();
+  // عدّاد مهلة الجواب على بطاقة السؤال
+  function updateQTimer() {
+    const el = $('#q-timer');
+    const on = !!S.settings.limit;
+    el.classList.toggle('hidden', !on);
+    if (!on) return;
+    const sec = Math.max(0, Math.ceil(S.qLeft));
+    el.textContent = '⏱️ ' + sec;
+    el.classList.toggle('low', sec <= 2);
   }
 
   function flash(i, text, cls) {
@@ -687,8 +666,6 @@
       if (S.item) S.lastAnswer = S.item.a;
       sfx.buzzer();
       toast(`⏰ ${S.teams[out].name} خلص وقته وطلع! الجواب كان: ${S.item ? S.item.a : ''}`, 2600);
-      S.steal = null;
-      $('#card').classList.remove('stealing');
       S.turn = nextAlive(out);
       renderHud();
       nextQuestion();
@@ -701,8 +678,7 @@
     if (S.phase !== 'play') return;
     if (S.item) S.lastAnswer = S.item.a;
     S.lastWinner = winner;
-    S.steal = null;
-    $('#card').classList.remove('stealing');
+    S.passed = false;
     S.teams[winner].wins++;
     const gameOver = S.teams[winner].wins >= S.settings.target;
     S.busy = false;
@@ -761,7 +737,7 @@
     S.busy = false;
     S.paused = false;
     S.item = null;
-    S.steal = null;
+    S.passed = false;
     if (S.effect) { S.effect.cancel(); S.effect = null; }
     S.teams.forEach(t => { t.wins = 0; });
     toast('انلغت اللعبة');
@@ -825,13 +801,6 @@
     const dt = (now - lastTick) / 1000;
     lastTick = now;
     if (S.phase !== 'play' || S.paused || S.busy) return;
-    if (S.steal) {
-      const b = Math.ceil(S.steal.left);
-      S.steal.left -= dt;
-      if (Math.ceil(S.steal.left) !== b) { updateStealBanner(); broadcast(); sfx.tick(); }
-      if (S.steal.left <= 0) stealFail();
-      return;
-    }
     const t = S.teams[S.turn];
     const before = Math.ceil(t.time);
     t.time -= dt;
@@ -841,7 +810,14 @@
       renderHud();
       broadcast();
     }
-    if (t.time <= 0) teamOut();
+    if (t.time <= 0) { teamOut(); return; }
+    // مهلة الجواب: إذا خلصت، السؤال ينتقل تلقائي للفريق اللي بعده
+    if (S.settings.limit) {
+      const qb = Math.ceil(S.qLeft);
+      S.qLeft -= dt;
+      if (Math.ceil(S.qLeft) !== qb) { updateQTimer(); broadcast(); }
+      if (S.qLeft <= 0) passQuestion(true);
+    }
   }, 100);
 
   // ---------- أدوات واجهة ----------

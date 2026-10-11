@@ -23,12 +23,21 @@ const APPS = {
   mcdonalds: 'ماكدونالدز', starbucks: 'ستاربكس', nike: 'نايكي', adidas: 'أديداس', puma: 'بوما',
   huawei: 'هواوي', shell: 'شل', redbull: 'ريد بول', mastercard: 'ماستركارد', deliveroo: 'ديليفرو',
   nba: 'NBA (دوري السلة الأمريكي)', premierleague: 'الدوري الإنگليزي',
+  bluetooth: 'بلوتوث', googledrive: 'گوگل درايف', googlephotos: 'صور گوگل', googleplay: 'گوگل بلاي',
+  appstore: 'آب ستور', icloud: 'آي كلاود', tinder: 'تيندر', opera: 'متصفح أوبرا', tripadvisor: 'تريب أدفايزر',
+  nvidia: 'إنفيديا', jordan: 'جوردن', underarmour: 'أندر آرمور', imessage: 'آي مسج', waze: 'ويز',
+  googlemeet: 'گوگل ميت', googletranslate: 'ترجمة گوگل', linux: 'لينكس', ubuntu: 'أوبونتو',
+  soundcloud: 'ساوند كلاود', bitcoin: 'بيتكوين', ethereum: 'إيثيريوم', binance: 'باينانس',
+  tacobell: 'تاكو بيل', reebok: 'ريبوك', oneplus: 'ون بلس', motorola: 'موتورولا', bluesky: 'بلوسكاي',
+  kick: 'كيك', battledotnet: 'باتل نت', googleassistant: 'مساعد گوگل',
 };
 const CARS = {
   toyota: 'تويوتا', audi: 'أودي', ferrari: 'فيراري', tesla: 'تيسلا', lamborghini: 'لامبورغيني',
   hyundai: 'هيونداي', honda: 'هوندا', volkswagen: 'فولكس واگن', chevrolet: 'شفروليه', mitsubishi: 'ميتسوبيشي',
   renault: 'رينو', mazda: 'مازدا', subaru: 'سوبارو', suzuki: 'سوزوكي', maserati: 'مازيراتي',
   bugatti: 'بوگاتي', rollsroyce: 'رولز رويس', citroen: 'ستروين', opel: 'أوبل', skoda: 'سكودا', seat: 'سيات',
+  cadillac: 'كاديلاك', infiniti: 'إنفينيتي', acura: 'أكيورا', astonmartin: 'أستون مارتن', polestar: 'بولستار',
+  dacia: 'داسيا', smart: 'سمارت', bentley: 'بنتلي', yamahacorporation: 'ياماها',
 };
 
 function build(map) {

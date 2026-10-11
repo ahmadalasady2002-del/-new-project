@@ -81,7 +81,7 @@
     end: () => [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.25, 'triangle', 0.18, i * 0.13)),
     buzzer: () => { tone(220, 0.5, 'sawtooth', 0.15); tone(110, 0.5, 'square', 0.08); },
     bonus: () => [784, 988, 1175, 1568].forEach((f, i) => tone(f, 0.12, 'triangle', 0.14, i * 0.07)),
-    steal: () => { tone(330, 0.12, 'square', 0.08); tone(440, 0.12, 'square', 0.08, 0.12); tone(330, 0.12, 'square', 0.08, 0.24); },
+    pass: () => { tone(440, 0.1, 'triangle', 0.12); tone(330, 0.16, 'triangle', 0.12, 0.1); },
     applause,
     get muted() { return muted; },
     setMuted(v) {

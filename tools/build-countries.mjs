@@ -24,7 +24,7 @@ const NAMES = {
   SD: 'السودان', MA: 'المغرب', DZ: 'الجزائر', TN: 'تونس', MR: 'موريتانيا', SO: 'الصومال',
   DJ: 'جيبوتي', KM: 'جزر القمر', IQ: 'العراق', CN: 'الصين', TW: 'تايوان', ZA: 'جنوب أفريقيا',
   NZ: 'نيوزيلندا', CV: 'الرأس الأخضر', SS: 'جنوب السودان', CF: 'أفريقيا الوسطى',
-  DO: 'الدومينيكان', TT: 'ترينيداد وتوباغو', VA: 'الفاتيكان', MM: 'ميانمار', BN: 'بروناي',
+  DO: 'الدومينيكان', SZ: 'إسواتيني (سوازيلاند)', TT: 'ترينيداد وتوباغو', VA: 'الفاتيكان', MM: 'ميانمار', BN: 'بروناي',
 };
 
 // دول معروفة للأعلام (مرتبة تقريباً من الأسهل للأصعب)
@@ -33,7 +33,9 @@ TR IR PK AF IN CN JP KR KP ID MY TH VN PH SG BD LK NP MN KZ UZ AZ GE AM
 US CA MX BR AR CL CO PE VE UY PY BO EC CU JM
 GB FR DE IT ES PT NL BE CH AT SE NO DK FI IS IE PL CZ SK HU RO BG GR UA RU BY RS HR SI BA AL MK ME MT CY EE LV LT LU MC VA
 NG GH SN CI CM KE ET TZ UG RW ZA ZW ZM AO MZ MG ML NE TD BF GN CD CG GA SS ER
-AU NZ FJ PG`.split(/\s+/);
+AU NZ FJ PG
+CR PA GT HN NI SV DO HT BS BB TT KH LA MM BN BT MV KG TJ TM MD
+BJ BW LR MW MU NA SL TG GM GQ CV SC BI LS SZ WS TO VU SB`.split(/\s+/).filter((c, i, a) => a.indexOf(c) === i);
 
 // دول شكلها على الخريطة واضح ومعروف
 const MAPS = `IQ SA EG JO SY LB KW AE QA OM YE MA DZ TN LY SD SO
