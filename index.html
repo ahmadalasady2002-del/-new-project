@@ -5,10 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>شوتايم — تحدي الصور</title>
   <meta name="theme-color" content="#0a0e1c">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&family=Lalezar&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=202610112119">
+  <link rel="stylesheet" href="css/fonts.css?v=202610112125">
+  <link rel="stylesheet" href="css/style.css?v=202610112125">
 </head>
 <body class="tv">
   <div class="glow"></div>
@@ -31,6 +29,11 @@
         <button class="btn ghost" id="btn-howto">طريقة اللعب</button>
         <button class="btn ghost" id="btn-custom">أضف صورك</button>
         <button class="btn ghost" id="btn-fullscreen">ملء الشاشة</button>
+      </div>
+      <div class="offline-box">
+        <button class="btn ghost" id="btn-offline">📥 جهّز اللعبة للعب بدون إنترنت</button>
+        <p class="muted small" id="offline-status"></p>
+        <a class="muted small credits-link" href="credits.html" target="_blank">حقوق الصور</a>
       </div>
     </div>
   </section>
@@ -195,15 +198,16 @@
     </div>
   </section>
 
-  <script src="vendor/peerjs.min.js?v=202610112119"></script>
-  <script src="vendor/qrcode.js?v=202610112119"></script>
-  <script src="js/data/countries.js?v=202610112119"></script>
-  <script src="js/data/logos.js?v=202610112119"></script>
-  <script src="js/data/punishments.js?v=202610112119"></script>
-  <script src="js/data/content.js?v=202610112119"></script>
-  <script src="js/common.js?v=202610112119"></script>
-  <script src="js/store.js?v=202610112119"></script>
-  <script src="js/images.js?v=202610112119"></script>
-  <script src="js/tv.js?v=202610112119"></script>
+  <script src="vendor/peerjs.min.js?v=202610112125"></script>
+  <script src="vendor/qrcode.js?v=202610112125"></script>
+  <script src="js/data/countries.js?v=202610112125"></script>
+  <script src="js/data/logos.js?v=202610112125"></script>
+  <script src="js/data/punishments.js?v=202610112125"></script>
+  <script src="js/data/content.js?v=202610112125"></script>
+  <script src="js/common.js?v=202610112125"></script>
+  <script src="js/store.js?v=202610112125"></script>
+  <script src="js/data/wiki-images.js?v=202610112125"></script>
+  <script src="js/images.js?v=202610112125"></script>
+  <script src="js/tv.js?v=202610112125"></script>
 </body>
 </html>

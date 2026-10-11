@@ -131,5 +131,52 @@
     stop() { clearInterval(this.timer); this.timer = null; },
   };
 
-  window.ST = { params, peerOptions, peerQuery, PREFIX, randomCode, shuffle, sfx, music };
+  // ---------- بدون إنترنت ----------
+  const CACHE = 'showtime-v1';
+  if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+    window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(e => console.warn('sw', e)));
+  }
+
+  // نحفظ كل ملفات اللعبة والصور بالجهاز. onProgress(done, total)
+  async function prepareOffline(onProgress) {
+    if (!window.caches) throw new Error('no-cache');
+    const urls = new Set(['./', 'index.html', 'remote.html', 'sw.js', 'credits.html']);
+    document.querySelectorAll('script[src], link[rel="stylesheet"]').forEach(el => urls.add(el.getAttribute('src') || el.getAttribute('href')));
+    // ملفات صفحة الحكم
+    try {
+      const html = await (await fetch('remote.html', { cache: 'no-store' })).text();
+      (html.match(/(?:src|href)="([^"]+)"/g) || []).forEach(m => {
+        const u = m.replace(/^(?:src|href)="|"$/g, '');
+        if (!/^https?:/.test(u)) urls.add(u);
+      });
+    } catch (e) { /* ignore */ }
+    ['cairo-arabic-400', 'cairo-arabic-700', 'cairo-arabic-800', 'cairo-latin-400', 'cairo-latin-700', 'cairo-latin-800',
+      'lalezar-arabic-400', 'lalezar-latin-400'].forEach(f => urls.add('assets/fonts/' + f + '-normal.woff2'));
+    if (window.COUNTRIES) COUNTRIES.flags.forEach(f => urls.add('assets/flags/' + f.c + '.svg'));
+    Object.values(window.WIKI_IMAGES || {}).forEach(u => urls.add(u));
+
+    const list = [...urls];
+    const cache = await caches.open(CACHE);
+    let done = 0, failed = 0;
+    let i = 0;
+    async function worker() {
+      while (i < list.length) {
+        const u = list[i++];
+        try {
+          const hit = await cache.match(u);
+          if (!hit) {
+            const res = await fetch(u, { cache: 'no-store' });
+            if (res.ok) await cache.put(u, res); else failed++;
+          }
+        } catch (e) { failed++; }
+        done++;
+        if (onProgress) onProgress(done, list.length);
+      }
+    }
+    await Promise.all([1, 2, 3, 4, 5, 6].map(worker));
+    try { localStorage.setItem('st-offline', JSON.stringify({ at: Date.now(), n: list.length - failed })); } catch (e) { /* ignore */ }
+    return { total: list.length, failed };
+  }
+
+  window.ST = { params, peerOptions, peerQuery, PREFIX, randomCode, shuffle, sfx, music, prepareOffline };
 })();

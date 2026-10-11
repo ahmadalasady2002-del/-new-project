@@ -171,7 +171,7 @@ h3 { font-size: calc(var(--u) * 2.2); margin: calc(var(--u) * 2) 0 calc(var(--u)
 .stage { position: relative; flex: 1; width: 100%; display: flex; align-items: center; justify-content: center; min-height: 0; }
 
 /* العجلة */
-.wheel-wrap { --ws: min(calc(var(--u) * 52), 60vh); position: relative; width: var(--ws); height: var(--ws); display: none; }
+.wheel-wrap { --ws: min(calc(var(--u) * 52), calc(100vh - var(--u) * 36)); position: relative; width: var(--ws); height: var(--ws); display: none; }
 #s-game[data-phase="wheel"] .wheel-wrap, #s-game[data-phase="spinning"] .wheel-wrap { display: block; }
 #wheel-wrap { --wu: 1px; }
 .wheel-spin { position: absolute; top: 0; right: 0; bottom: 0; left: 0; will-change: transform; }
@@ -199,10 +199,11 @@ h3 { font-size: calc(var(--u) * 2.2); margin: calc(var(--u) * 2) 0 calc(var(--u)
 @keyframes glowring { 50% { filter: drop-shadow(0 0 40px #f5c76b); } }
 
 /* المختلط: بدل العجلة */
-.mixed-card { display: none; flex-direction: column; align-items: center; gap: calc(var(--u) * 1.2); text-align: center; }
-.mixed-card h2 { margin: 0; font-size: calc(var(--u) * 5); }
-.mixed-card p { font-size: calc(var(--u) * 2); margin: 0 0 calc(var(--u) * 1.5); }
-.mixed-dice { font-size: calc(var(--u) * 12); animation: wobble 2.4s ease-in-out infinite; }
+.mixed-card { display: none; flex-direction: column; align-items: center; gap: calc(var(--u) * .8); text-align: center; max-height: 100%; }
+.mixed-card h2 { margin: 0; font-size: calc(var(--u) * 4); line-height: 1.2; }
+.mixed-card p { font-size: calc(var(--u) * 2); margin: 0 0 calc(var(--u) * .8); }
+.mixed-card .btn.big { font-size: calc(var(--u) * 2.4); }
+.mixed-dice { font-size: calc(var(--u) * 8); line-height: 1; animation: wobble 2.4s ease-in-out infinite; }
 @keyframes wobble { 25% { transform: rotate(-12deg); } 75% { transform: rotate(12deg); } }
 #s-game.mixed[data-phase="wheel"] .mixed-card { display: flex; }
 #s-game.mixed .wheel-wrap { display: none !important; }
@@ -418,6 +419,7 @@ body.bonus .r-card { border-color: var(--gold); box-shadow: 0 0 20px #f5c76b55; 
   .q-prompt { font-size: calc(var(--u) * 2.2); margin-bottom: calc(var(--u) * .6); }
   .q-answer { font-size: calc(var(--u) * 2.6); }
   .local-ctrl .btn { padding: .3em 1.1em; }
+  .wheel-wrap { --ws: min(calc(var(--u) * 52), calc(100vh - var(--u) * 24)); }
   .pass-banner, .bonus-badge { font-size: calc(var(--u) * 1.6); }
 }
 /* موبايل بالطول: نكبّر الوحدة حتى الكتابة ما تصير زغيرة */
@@ -462,3 +464,9 @@ body[data-phase="speedReady"] .r-card { border-color: #f59e0b; box-shadow: 0 0 2
 .r-btn.pun { display: block; font-size: 17px; text-align: right; }
 .r-btn.pun.chosen { border-color: var(--orange); background: #431407; color: #fed7aa; }
 .r-sub { color: var(--orange); font-weight: 800; font-size: 16px; }
+
+/* بدون إنترنت */
+.offline-box { display: flex; flex-direction: column; align-items: center; gap: 4px; margin-top: calc(var(--u) * 1.5); max-width: 90vw; }
+.offline-box .btn { font-size: calc(var(--u) * 1.5); }
+.offline-box p { margin: 0; text-align: center; }
+.credits-link { color: var(--muted); text-decoration: underline; }

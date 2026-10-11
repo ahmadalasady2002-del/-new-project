@@ -1216,6 +1216,31 @@
     }
   }
 
+  // ---------- بدون إنترنت ----------
+  function offlineStatus() {
+    let info = null;
+    try { info = JSON.parse(localStorage.getItem('st-offline')); } catch (e) { /* ignore */ }
+    const n = Object.keys(window.WIKI_IMAGES || {}).length;
+    $('#offline-status').textContent = info
+      ? `✅ جاهزة بدون إنترنت (${info.n} ملف). ملاحظة: موبايل الحكم يحتاج إنترنت؛ بدون إنترنت العبوا من نفس الجهاز.`
+      : (n ? `يحمّل ${n} صورة مرة وحدة، وبعدها تشتغل حتى لو الإنترنت طافي.` : '');
+  }
+  $('#btn-offline').addEventListener('click', async () => {
+    const b = $('#btn-offline');
+    if (b.disabled) return;
+    b.disabled = true;
+    try {
+      const r = await ST.prepareOffline((d, t) => { $('#offline-status').textContent = `جاري التحميل… ${d} / ${t}`; });
+      offlineStatus();
+      if (r.failed) toast(`تحمّلت اللعبة، بس ${r.failed} ملف ما تحمّل. جرّبوا مرة ثانية والإنترنت شغّال.`, 4000);
+      else toast('✅ اللعبة صارت تشتغل بدون إنترنت', 3000);
+    } catch (e) {
+      toast('هالمتصفح ما يدعم الحفظ بدون إنترنت', 3000);
+    }
+    b.disabled = false;
+  });
+  offlineStatus();
+
   renderNight();
   loadCustom();
   window.__ST_STATE = S; // للتجربة والتصحيح

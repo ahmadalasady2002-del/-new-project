@@ -2,7 +2,11 @@
 (function () {
   // نجيب صور ويكيبيديا دفعة وحدة (50 عنوان بالطلب). pageimages ترجع الصور الحرة بس.
   async function resolveWiki(cat) {
-    const pending = cat.items.filter(it => it.img === undefined);
+    // أول شي الصور المحفوظة جوه اللعبة (تشتغل بدون إنترنت)
+    const local = window.WIKI_IMAGES || {};
+    cat.items.forEach(it => { if (it.img === undefined && local[it.t]) it.img = local[it.t]; });
+    // الباقي (إذا اكو) من ويكيبيديا مباشرة، بس إذا اكو إنترنت
+    const pending = navigator.onLine === false ? [] : cat.items.filter(it => it.img === undefined);
     for (let i = 0; i < pending.length; i += 50) {
       const chunk = pending.slice(i, i + 50);
       const url = 'https://en.wikipedia.org/w/api.php?action=query&format=json&origin=*&redirects=1'
