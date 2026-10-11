@@ -14,6 +14,8 @@
   --orange: #fdba74;
   --t1: #c4b5fd;
   --t2: #7dd3fc;
+  --t3: #f9a8d4;
+  --t4: #86efac;
   --radius: 18px;
   --u: min(1vw, 1.78vh);   /* وحدة تتناسب مع الشاشة 16:9 */
 }
@@ -132,8 +134,12 @@ h3 { font-size: calc(var(--u) * 2.2); margin: calc(var(--u) * 2) 0 calc(var(--u)
   border-radius: var(--radius); background: var(--card); border: 2px solid var(--line);
   display: flex; flex-direction: column; align-items: center; transition: all .3s;
 }
-.team-box .t-name { font-weight: 800; font-size: calc(var(--u) * 2); color: var(--t1); }
-#tb1 .t-name { color: var(--t2); }
+.team-box.c0, .r-team.c0, .chip.c0 { --tc: var(--t1); }
+.team-box.c1, .r-team.c1, .chip.c1 { --tc: var(--t2); }
+.team-box.c2, .r-team.c2, .chip.c2 { --tc: var(--t3); }
+.team-box.c3, .r-team.c3, .chip.c3 { --tc: var(--t4); }
+.chip.c0, .chip.c1, .chip.c2, .chip.c3 { color: var(--tc); }
+.team-box .t-name { font-weight: 800; font-size: calc(var(--u) * 2); color: var(--tc); }
 .team-box .t-time { font-weight: 800; font-size: calc(var(--u) * 6); line-height: 1.1; font-variant-numeric: tabular-nums; direction: ltr; }
 .team-box .t-time small { font-size: .4em; color: var(--muted); margin-inline-start: 2px; }
 .team-box .t-dots { display: flex; gap: 6px; margin-top: 4px; }
@@ -141,11 +147,18 @@ h3 { font-size: calc(var(--u) * 2.2); margin: calc(var(--u) * 2) 0 calc(var(--u)
 .team-box .t-dots i.on { background: var(--gold); border-color: var(--gold); }
 .team-box .turn {
   position: absolute; bottom: -.9em; padding: .1em 1em; border-radius: 999px; font-weight: 800; font-size: calc(var(--u) * 1.4);
-  background: var(--t1); color: #1e1238; opacity: 0; transform: scale(.6); transition: all .25s;
+  background: var(--tc); color: #111827; opacity: 0; transform: scale(.6); transition: all .25s;
 }
-#tb1 .turn { background: var(--t2); color: #082f49; }
-.team-box.active { border-color: var(--t1); box-shadow: 0 0 34px #c4b5fd55; transform: scale(1.06); }
-#tb1.active { border-color: var(--t2); box-shadow: 0 0 34px #7dd3fc55; }
+.team-box.active { border-color: var(--tc); box-shadow: 0 0 34px var(--tc); transform: scale(1.06); }
+.team-box.out { opacity: .35; filter: grayscale(1); }
+.team-box.out .t-time::after { content: ' ❌'; font-size: .4em; }
+/* ترتيب: ويا فريقين التصنيف بالنص، وويا أكثر ينزل سطر تحت الفرق */
+.hud .team-box { order: var(--o); }
+.hud .hud-mid { order: 1; }
+.hud.many { flex-wrap: wrap; justify-content: center; }
+.hud.many .hud-mid { order: 99; flex-basis: 100%; padding-top: 0; flex-direction: row; justify-content: center; gap: 1em; }
+.hud.many .team-box { min-width: calc(var(--u) * 17); padding: calc(var(--u) * .8) calc(var(--u) * 1.8) calc(var(--u) * 1.6); }
+.hud.many .team-box .t-time { font-size: calc(var(--u) * 4.6); }
 .team-box.active .turn { opacity: 1; transform: none; }
 .team-box.low .t-time { color: var(--red); animation: pulse .5s infinite alternate; }
 @keyframes pulse { to { transform: scale(1.08); } }
@@ -300,10 +313,10 @@ body[data-phase="play"] #r-correct, body[data-phase="play"] #r-skip { display: b
 body[data-phase="wheel"] #r-spin { display: block; }
 body[data-phase="roundEnd"] #r-next, body[data-phase="gameEnd"] #r-next { display: block; }
 body.paused[data-phase="play"] #r-correct, body.paused[data-phase="play"] #r-skip { opacity: .35; pointer-events: none; }
-.r-teams { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.r-teams { display: grid; grid-template-columns: repeat(auto-fit, minmax(80px, 1fr)); gap: 10px; }
 .r-team { background: var(--card); border: 1.5px solid var(--line); border-radius: 14px; padding: 10px; text-align: center; display: flex; flex-direction: column; }
-.r-team .n { color: var(--t1); font-weight: 700; font-size: 14px; }
-#rt1 .n { color: var(--t2); }
+.r-team .n { color: var(--tc, var(--t1)); font-weight: 700; font-size: 14px; }
+.r-team.out { opacity: .4; }
 .r-team .t { font-size: 26px; }
 .r-team .d { color: var(--gold); letter-spacing: 3px; font-size: 12px; }
 .r-team.active { border-color: var(--purple); box-shadow: 0 0 18px #a78bfa44; }
@@ -364,3 +377,6 @@ body.paused[data-phase="play"] #r-correct, body.paused[data-phase="play"] #r-ski
 body.stealing .r-card { border-color: var(--orange); }
 body.bonus .r-card { border-color: var(--gold); box-shadow: 0 0 20px #f5c76b55; }
 .r-btn.mute { font-size: 15px; padding: 10px; background: transparent; }
+
+/* كمّل المثل */
+.text-q { font-weight: 800; font-size: calc(var(--u) * 4.6); line-height: 1.5; color: #1e1b4b; text-align: center; padding: 0 6%; }

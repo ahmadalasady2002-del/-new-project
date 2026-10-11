@@ -53,6 +53,12 @@
 
   // يرجع عنصر HTML للسؤال
   function render(cat, item) {
+    if (cat.type === 'text') {
+      const d = document.createElement('div');
+      d.className = 'text-q';
+      d.textContent = item.q;
+      return d;
+    }
     if (cat.type === 'clues') {
       const ol = document.createElement('ol');
       ol.className = 'clues-q';

@@ -15,8 +15,9 @@
 
   const S = {
     selected: new Set(['flags', 'apps', 'cars', 'players']),
-    settings: { time: 45, target: 3, mode: 'normal', play: 'wheel', steal: 'on', bonus: 'on' },
-    teams: [{ name: '', time: 45, wins: 0 }, { name: '', time: 45, wins: 0 }],
+    settings: { time: 45, target: 3, mode: 'normal', play: 'wheel', steal: 'on', bonus: 'on', teams: 2 },
+    teams: [],
+    teamNames: ['', '', '', ''],
     cats: [], cat: null, item: null,
     phase: 'setup', turn: 0, roundStarter: 0,
     paused: false, busy: false, lastAnswer: '',
@@ -102,16 +103,42 @@
     const sync = () => seg.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === String(S.settings[key])));
     seg.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
       sfx.click();
-      S.settings[key] = (key === 'time' || key === 'target') ? Number(b.dataset.v) : b.dataset.v;
+      S.settings[key] = (key === 'time' || key === 'target' || key === 'teams') ? Number(b.dataset.v) : b.dataset.v;
       sync();
+      if (key === 'teams') renderTeamInputs();
     }));
     sync();
   });
 
+  // خانات أسماء الفرق حسب العدد المختار (الأسماء تنحفظ إذا غيّرتوا العدد)
+  const PLACEHOLDERS = ['الصقور', 'النجوم', 'الأسود', 'النسور'];
+  function renderTeamInputs() {
+    const box = $('#team-inputs');
+    box.innerHTML = '';
+    for (let i = 0; i < S.settings.teams; i++) {
+      const l = document.createElement('label');
+      l.className = 'team-input';
+      const chip = document.createElement('span');
+      chip.className = 'chip c' + i;
+      chip.textContent = 'الفريق ' + (i + 1);
+      const inp = document.createElement('input');
+      inp.maxLength = 18;
+      inp.id = 'team' + (i + 1);
+      inp.placeholder = PLACEHOLDERS[i];
+      inp.value = S.teamNames[i];
+      inp.addEventListener('input', () => { S.teamNames[i] = inp.value; });
+      l.append(chip, inp);
+      box.appendChild(l);
+    }
+  }
+  renderTeamInputs();
+
   $('#btn-teams-next').addEventListener('click', () => {
     sfx.click();
-    S.teams[0].name = $('#team1').value.trim() || 'الفريق 1';
-    S.teams[1].name = $('#team2').value.trim() || 'الفريق 2';
+    S.teams = Array.from({ length: S.settings.teams }, (_, i) => ({
+      name: S.teamNames[i].trim() || 'الفريق ' + (i + 1), time: S.settings.time, wins: 0, out: false,
+    }));
+    buildHud();
     show('s-join');
     if (S.refs.size) { startGame(); return; }  // الحكم داخل من قبل
     initPeer();
@@ -212,7 +239,7 @@
       bonus: S.phase === 'play' && S.bonusQ,
       clues: S.cat && S.cat.type === 'clues' && S.item ? [S.clueShown, S.item.clues.length] : null,
       muted: sfx.muted,
-      teams: S.teams.map(t => ({ name: t.name, time: Math.max(0, Math.ceil(t.time)), wins: t.wins })),
+      teams: S.teams.map(t => ({ name: t.name, time: Math.max(0, Math.ceil(t.time)), wins: t.wins, out: !!t.out })),
     };
     S.refs.forEach(c => { try { c.open && c.send(st); } catch (e) { console.warn(e); } });
   }
@@ -248,7 +275,7 @@
     }
     S.cats = cats;
     S.teams.forEach(t => { t.wins = 0; });
-    S.roundStarter = 1;      // nextRound يقلبها، فالجولة الأولى يبدي الفريق 1
+    S.roundStarter = S.teams.length - 1;      // nextRound يدوّرها، فالجولة الأولى يبدي الفريق 1
     show('s-game');
     $('#s-game').classList.toggle('mixed', S.settings.play === 'mixed');
     drawWheel();
@@ -256,9 +283,9 @@
   }
 
   function nextRound() {
-    S.roundStarter = 1 - S.roundStarter;
+    S.roundStarter = (S.roundStarter + 1) % S.teams.length;
     S.turn = S.roundStarter;
-    S.teams.forEach(t => { t.time = S.settings.time; });
+    S.teams.forEach(t => { t.time = S.settings.time; t.out = false; });
     S.cat = null; S.item = null; S.paused = false; S.steal = null; S.bonusQ = false;
     setPhase('wheel');
   }
@@ -272,9 +299,37 @@
     broadcast();
   }
 
+  // صناديق الفرق فوگ الشاشة
+  function buildHud() {
+    const hud = $('#hud');
+    hud.querySelectorAll('.team-box').forEach(b => b.remove());
+    hud.classList.toggle('many', S.teams.length > 2);
+    S.teams.forEach((t, i) => {
+      const b = document.createElement('div');
+      b.className = 'team-box c' + i;
+      b.id = 'tb' + i;
+      // ويا فريقين: الأول يمين والثاني يسار والتصنيف بالنص
+      b.style.setProperty('--o', S.teams.length === 2 ? (i === 0 ? 0 : 2) : i);
+      b.innerHTML = '<span class="t-name"></span><span class="t-time"></span><span class="t-dots"></span><span class="turn">الدور</span>';
+      hud.appendChild(b);
+    });
+  }
+
+  // الفريق الجاي اللي بعده باللعبة (نتخطى اللي طلعوا)
+  function nextAlive(from) {
+    const n = S.teams.length;
+    for (let k = 1; k < n; k++) {
+      const i = (from + k) % n;
+      if (!S.teams[i].out) return i;
+    }
+    return from;
+  }
+
   function renderHud() {
     S.teams.forEach((t, i) => {
       const box = $('#tb' + i);
+      if (!box) return;
+      box.classList.toggle('out', !!t.out);
       box.querySelector('.t-name').textContent = t.name;
       const sec = Math.max(0, Math.ceil(t.time));
       box.querySelector('.t-time').innerHTML = sec + '<small>s</small>';
@@ -542,7 +597,7 @@
     broadcast();
     setTimeout(() => {
       if (S.phase !== 'play') return;
-      S.turn = 1 - S.turn;
+      S.turn = nextAlive(S.turn);
       renderHud();
       nextQuestion();
     }, REVEAL_MS);
@@ -557,7 +612,7 @@
     t.time -= SKIP_PENALTY;
     flash(S.turn, '−' + SKIP_PENALTY + 's');
     renderHud();
-    if (t.time <= 0) { endRound(); return; }
+    if (t.time <= 0) { teamOut(); return; }
     if (S.settings.steal === 'on') { startSteal(); return; }
     toast('الجواب كان: ' + S.item.a, 1600);
     nextQuestion();
@@ -567,7 +622,7 @@
   // بعد التخطّي، الفريق الثاني عنده ثواني قليلة يجاوب نفس الصورة.
   // وقت الفريقين واگف خلال السرقة.
   function startSteal() {
-    S.steal = { team: 1 - S.turn, left: STEAL_SECS };
+    S.steal = { team: nextAlive(S.turn), left: STEAL_SECS };
     sfx.steal();
     $('#card').classList.add('stealing');
     updateStealBanner();
@@ -640,11 +695,30 @@
     broadcast();
   }
 
-  function endRound() {
+  // الفريق اللي دوره خلص وقته: يطلع. إذا بقى فريق واحد تنتهي الجولة.
+  function teamOut() {
     if (S.phase !== 'play') return;
-    S.teams[S.turn].time = 0;
+    const out = S.turn;
+    S.teams[out].time = 0;
+    S.teams[out].out = true;
+    const alive = S.teams.map((t, i) => i).filter(i => !S.teams[i].out);
+    if (alive.length >= 2) {
+      if (S.item) S.lastAnswer = S.item.a;
+      sfx.buzzer();
+      toast(`⏰ ${S.teams[out].name} خلص وقته وطلع! الجواب كان: ${S.item ? S.item.a : ''}`, 2600);
+      S.steal = null;
+      $('#card').classList.remove('stealing');
+      S.turn = nextAlive(out);
+      renderHud();
+      nextQuestion();
+      return;
+    }
+    endRound(alive[0]);
+  }
+
+  function endRound(winner) {
+    if (S.phase !== 'play') return;
     if (S.item) S.lastAnswer = S.item.a;
-    const winner = 1 - S.turn;
     S.lastWinner = winner;
     S.steal = null;
     $('#card').classList.remove('stealing');
@@ -660,7 +734,9 @@
     const w = S.teams[winner];
     $('#ov-title').textContent = gameOver ? '🏆 مبروك!' : 'انتهت الجولة!';
     $('#ov-winner').textContent = gameOver ? w.name + ' فاز باللعبة' : 'الفايز: ' + w.name;
-    const score = `${S.teams[0].name} ${S.teams[0].wins} — ${S.teams[1].wins} ${S.teams[1].name}`;
+    const score = S.teams.length === 2
+      ? `${S.teams[0].name} ${S.teams[0].wins} — ${S.teams[1].wins} ${S.teams[1].name}`
+      : S.teams.map(t => `${t.name} ${t.wins}`).join(' · ');
     $('#ov-sub').textContent = (gameOver ? 'النتيجة النهائية: ' : `${S.settings.target} جولات = الفوز باللعبة · `) + score;
     const acts = $('#ov-actions');
     acts.innerHTML = '';
@@ -692,7 +768,7 @@
 
   function newGame() {
     S.teams.forEach(t => { t.wins = 0; });
-    S.roundStarter = 1;
+    S.roundStarter = S.teams.length - 1;
     nextRound();
   }
 
@@ -788,7 +864,7 @@
       renderHud();
       broadcast();
     }
-    if (t.time <= 0) endRound();
+    if (t.time <= 0) teamOut();
   }, 100);
 
   // ---------- أدوات واجهة ----------

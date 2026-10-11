@@ -50,6 +50,7 @@
         <li><b>السرقة 🥷:</b> إذا فريق دوس تخطّي، الفريق الثاني عنده 6 ثواني يجاوب نفس الصورة. إذا جاوب صح يسرق 3 ثواني.</li>
         <li><b>البونص ✨:</b> مرات تطلع صورة ذهبية، واللي يجاوبها صح ياخذ +5 ثواني.</li>
         <li><b>منو أنا؟ 🕵️:</b> تلميحات تنكشف وحدة ورا الثانية. كل ما تعرفونه أبكر أحسن.</li>
+        <li>تگدرون تلعبون <b>2 أو 3 أو 4 فرق</b>. ويا أكثر من فريقين، الفريق اللي يخلص وقته يطلع من الجولة والباقين يكملون.</li>
         <li>الفريق اللي يخلص وقته أول <b>يخسر الجولة</b>. اللي يفوز بعدد الجولات المطلوب ياخذ اللعبة، والنتيجة تنحسب بـ<b>نتائج السهرة</b>.</li>
       </ol>
       <p class="muted">ما عندكم موبايل للحكم؟ تگدرون تلعبون من نفس الجهاز: <b>Enter</b> = صحيح، <b>S</b> = تخطّي، <b>W</b> = دوّر العجلة أو ابدأ الجولة، <b>P</b> = إيقاف مؤقت، <b>M</b> = الصوت.</p>
@@ -73,8 +74,8 @@
   <section id="s-teams" class="screen">
     <div class="panel">
       <h2>قسّموا الفرق وسمّوها</h2>
-      <label class="team-input"><span class="chip t1">الفريق 1</span><input id="team1" maxlength="18" placeholder="الصقور"></label>
-      <label class="team-input"><span class="chip t2">الفريق 2</span><input id="team2" maxlength="18" placeholder="النجوم"></label>
+      <div class="setting"><span>عدد الفرق</span><div class="seg" data-key="teams"><button data-v="2">2</button><button data-v="3">3</button><button data-v="4">4</button></div></div>
+      <div id="team-inputs"></div>
       <p class="muted center">التسمية اختيارية</p>
       <div class="settings">
         <div class="setting"><span>وقت كل فريق</span><div class="seg" data-key="time"><button data-v="30">30</button><button data-v="45">45</button><button data-v="60">60</button><button data-v="90">90</button></div></div>
@@ -107,10 +108,8 @@
 
   <!-- اللعب -->
   <section id="s-game" class="screen">
-    <header class="hud">
-      <div class="team-box" id="tb0"><span class="t-name"></span><span class="t-time"></span><span class="t-dots"></span><span class="turn">الدور</span></div>
+    <header class="hud" id="hud">
       <div class="hud-mid"><span class="chip" id="cat-chip"></span><span class="pause-badge" id="pause-badge">⏸ متوقف</span></div>
-      <div class="team-box" id="tb1"><span class="t-name"></span><span class="t-time"></span><span class="t-dots"></span><span class="turn">الدور</span></div>
     </header>
 
     <div class="stage">
