@@ -361,22 +361,11 @@ body.paused[data-phase="play"] #r-correct, body.paused[data-phase="play"] #r-ski
 .q-card.bonus .bonus-badge { display: block; }
 .q-card.stealing .bonus-badge { display: none; }
 
-/* منو أنا؟ */
-.q-media.type-clues { height: auto; max-height: none; flex-shrink: 0; padding: calc(var(--u) * 1) 0; }
-.clues-q { list-style: none; margin: 0; padding: 0 6%; width: 100%; display: flex; flex-direction: column; gap: calc(var(--u) * .6); }
-.clue { display: flex; align-items: center; gap: calc(var(--u) * 1.2); padding: .2em .7em; border-radius: 14px; background: #dfe3ee; color: #1e1b4b; font-weight: 800; font-size: calc(var(--u) * 2); transition: all .4s; }
-.clue .n { flex: none; width: 1.45em; height: 1.45em; border-radius: 50%; display: grid; place-items: center; background: #a78bfa; color: #fff; font-size: .75em; }
-.clue:not(.on) { color: transparent; }
-.clue:not(.on) .t { visibility: hidden; }
-.clue:not(.on)::after { content: '؟'; color: #9aa3c0; margin-inline-start: -0.4em; }
-.clue:not(.on) .n { background: #b9bfd3; }
-.clue.on { animation: pop .35s cubic-bezier(.2,1.4,.4,1); background: #ede9fe; }
-
-/* ريموت: السرقة والبونص والتلميحات */
-.r-clues { color: var(--purple); font-weight: 700; }
+/* ريموت: السرقة والبونص */
 body.stealing .r-card { border-color: var(--orange); }
 body.bonus .r-card { border-color: var(--gold); box-shadow: 0 0 20px #f5c76b55; }
 .r-btn.mute { font-size: 15px; padding: 10px; background: transparent; }
 
 /* كمّل المثل */
 .text-q { font-weight: 800; font-size: calc(var(--u) * 4.6); line-height: 1.5; color: #1e1b4b; text-align: center; padding: 0 6%; }
+.text-q.long { font-size: calc(var(--u) * 3.6); }

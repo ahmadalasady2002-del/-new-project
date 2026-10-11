@@ -11,7 +11,6 @@
   const STEAL_SECS = 6;       // وقت فرصة السرقة
   const BONUS_SECS = 5;       // ثواني البونص
   const BONUS_CHANCE = 0.12;  // تقريباً سؤال من كل 8
-  const CLUE_MS = 6000;       // كل شكد ينكشف تلميح بـ«منو أنا؟»
 
   const S = {
     selected: new Set(['flags', 'apps', 'cars', 'players']),
@@ -21,7 +20,7 @@
     cats: [], cat: null, item: null,
     phase: 'setup', turn: 0, roundStarter: 0,
     paused: false, busy: false, lastAnswer: '',
-    steal: null, bonusQ: false, clueShown: 0, clueElapsed: 0,
+    steal: null, bonusQ: false,
     night: loadNight(),
     wheelRot: 0, effect: null,
     refs: new Set(), peer: null, code: null,
@@ -237,7 +236,6 @@
       turn: S.turn, target: S.settings.target, mixed: S.settings.play === 'mixed',
       steal: S.steal ? { team: S.steal.team, left: Math.max(0, Math.ceil(S.steal.left)) } : null,
       bonus: S.phase === 'play' && S.bonusQ,
-      clues: S.cat && S.cat.type === 'clues' && S.item ? [S.clueShown, S.item.clues.length] : null,
       muted: sfx.muted,
       teams: S.teams.map(t => ({ name: t.name, time: Math.max(0, Math.ceil(t.time)), wins: t.wins, out: !!t.out })),
     };
@@ -540,8 +538,6 @@
     S.item = item;
     S.steal = null;
     S.bonusQ = S.settings.bonus === 'on' && Math.random() < BONUS_CHANCE;
-    S.clueShown = cat.type === 'clues' ? 1 : 0;
-    S.clueElapsed = 0;
     const card = $('#card');
     card.classList.remove('correct', 'stealing', 'stolen');
     card.classList.toggle('bonus', S.bonusQ);
@@ -590,7 +586,6 @@
       S.teams[S.turn].time += BONUS_SECS;
       flash(S.turn, '+' + BONUS_SECS + 's', 'gain');
     }
-    revealAllClues();
     if (S.effect) S.effect.finish();
     $('#q-answer').textContent = S.item.a;
     $('#card').classList.add('correct');
@@ -644,7 +639,6 @@
     flash(thief, '+' + gain + 's', 'gain');
     S.lastAnswer = S.item.a;
     if (S.effect) S.effect.finish();
-    revealAllClues();
     $('#q-answer').textContent = '🥷 سرقوها! ' + S.item.a;
     $('#card').classList.remove('stealing');
     $('#card').classList.add('correct', 'stolen');
@@ -661,19 +655,6 @@
     toast('الجواب كان: ' + S.item.a, 1600);
     renderHud();
     nextQuestion();
-  }
-
-  // ---------- «منو أنا؟» ----------
-  function revealClue() {
-    if (!S.item || !S.item.clues || S.clueShown >= S.item.clues.length) return;
-    S.clueShown++;
-    S.clueElapsed = 0;
-    Media.showClues($('#q-media'), S.clueShown);
-    sfx.clue();
-    broadcast();
-  }
-  function revealAllClues() {
-    if (S.item && S.item.clues) Media.showClues($('#q-media'), S.item.clues.length);
   }
 
   function flash(i, text, cls) {
@@ -850,10 +831,6 @@
       if (Math.ceil(S.steal.left) !== b) { updateStealBanner(); broadcast(); sfx.tick(); }
       if (S.steal.left <= 0) stealFail();
       return;
-    }
-    if (S.item && S.item.clues && S.clueShown < S.item.clues.length) {
-      S.clueElapsed += dt * 1000;
-      if (S.clueElapsed >= CLUE_MS) revealClue();
     }
     const t = S.teams[S.turn];
     const before = Math.ceil(t.time);

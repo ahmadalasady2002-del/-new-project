@@ -82,7 +82,6 @@
     buzzer: () => { tone(220, 0.5, 'sawtooth', 0.15); tone(110, 0.5, 'square', 0.08); },
     bonus: () => [784, 988, 1175, 1568].forEach((f, i) => tone(f, 0.12, 'triangle', 0.14, i * 0.07)),
     steal: () => { tone(330, 0.12, 'square', 0.08); tone(440, 0.12, 'square', 0.08, 0.12); tone(330, 0.12, 'square', 0.08, 0.24); },
-    clue: () => tone(520, 0.08, 'sine', 0.08),
     applause,
     get muted() { return muted; },
     setMuted(v) {

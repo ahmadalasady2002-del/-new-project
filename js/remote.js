@@ -122,7 +122,6 @@
       ans.textContent = '—';
     }
     $('#r-cat').textContent = state && state.category ? 'التصنيف: ' + state.category : '';
-    $('#r-clues').textContent = p === 'play' && state.clues ? `التلميح ${state.clues[0]} من ${state.clues[1]}` : '';
     $('#r-correct').textContent = steal ? 'سرقوها ✓' : 'صحيح';
     $('#r-skip').innerHTML = steal ? 'ما عرفوا ✗' : 'تخطّي <small dir="ltr">−3s</small>';
     $('#r-mute').textContent = state && state.muted ? '🔇 صوت التلفزيون (طافي)' : '🔊 صوت التلفزيون';
