@@ -87,6 +87,7 @@
   $('#r-spin').addEventListener('click', () => send('spin'));
   $('#r-next').addEventListener('click', () => send('next'));
   $('#r-pause').addEventListener('click', () => send('pause'));
+  $('#r-mute').addEventListener('click', () => send('mute'));
   $('#r-cancel').addEventListener('click', () => {
     if (confirm('متأكد تريد تلغي اللعبة وترجع للبداية؟')) send('cancel');
   });
@@ -96,8 +97,13 @@
     document.body.dataset.phase = p;
     document.body.classList.toggle('paused', !!(state && state.paused));
     const ans = $('#r-answer'), label = $('#r-label');
+    const steal = p === 'play' && state.steal;
+    document.body.classList.toggle('stealing', !!steal);
+    document.body.classList.toggle('bonus', !!(p === 'play' && state.bonus));
     if (p === 'play') {
-      label.textContent = 'الجواب الحالي';
+      label.textContent = steal
+        ? `🥷 فرصة سرقة لـ ${state.teams[steal.team].name} — ${steal.left}`
+        : (state.bonus ? '✨ سؤال بونص +5 · الجواب الحالي' : 'الجواب الحالي');
       ans.textContent = state.answer || '…';
     } else if (p === 'wheel') {
       label.textContent = state.mixed ? 'اضغط «ابدأ الجولة» حتى تبدي' : 'دوّر العجلة حتى تبدي الجولة';
@@ -116,6 +122,10 @@
       ans.textContent = '—';
     }
     $('#r-cat').textContent = state && state.category ? 'التصنيف: ' + state.category : '';
+    $('#r-clues').textContent = p === 'play' && state.clues ? `التلميح ${state.clues[0]} من ${state.clues[1]}` : '';
+    $('#r-correct').textContent = steal ? 'سرقوها ✓' : 'صحيح';
+    $('#r-skip').innerHTML = steal ? 'ما عرفوا ✗' : 'تخطّي <small dir="ltr">−3s</small>';
+    $('#r-mute').textContent = state && state.muted ? '🔇 صوت التلفزيون (طافي)' : '🔊 صوت التلفزيون';
     $('#r-next').textContent = p === 'gameEnd' ? 'لعبة جديدة' : 'الجولة الجاية';
     $('#r-spin').textContent = state && state.mixed ? 'ابدأ الجولة 🎲' : 'دوّر العجلة';
     $('#r-pause').textContent = state && state.paused ? 'كمّل' : 'إيقاف مؤقت';

@@ -295,6 +295,7 @@ body[data-phase="play"] .r-card { border-color: var(--purple); }
 .r-btn { display: none; }
 body[data-phase="play"] #r-pause { display: block; }
 body:not([data-phase="none"]):not([data-phase="setup"]) #r-cancel { display: block; }
+body:not([data-phase="none"]) #r-mute { display: block; }
 body[data-phase="play"] #r-correct, body[data-phase="play"] #r-skip { display: block; }
 body[data-phase="wheel"] #r-spin { display: block; }
 body[data-phase="roundEnd"] #r-next, body[data-phase="gameEnd"] #r-next { display: block; }
@@ -306,3 +307,60 @@ body.paused[data-phase="play"] #r-correct, body.paused[data-phase="play"] #r-ski
 .r-team .t { font-size: 26px; }
 .r-team .d { color: var(--gold); letter-spacing: 3px; font-size: 12px; }
 .r-team.active { border-color: var(--purple); box-shadow: 0 0 18px #a78bfa44; }
+
+/* زر الصوت */
+.mute-btn {
+  position: fixed; top: calc(var(--u) * 1.2); left: calc(var(--u) * 1.2); z-index: 30;
+  width: calc(var(--u) * 4.4); height: calc(var(--u) * 4.4); min-width: 34px; min-height: 34px;
+  border-radius: 50%; border: 1.5px solid var(--line); background: var(--card); cursor: pointer;
+  font-size: calc(var(--u) * 2); opacity: .7;
+}
+.mute-btn:hover { opacity: 1; }
+
+/* نتائج السهرة */
+.night { background: var(--card); border: 1.5px solid var(--line); border-radius: var(--radius); padding: calc(var(--u) * 1.5) calc(var(--u) * 3); min-width: calc(var(--u) * 34); }
+.night h3 { margin: 0 0 calc(var(--u)); font-size: calc(var(--u) * 2.2); }
+.night-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: calc(var(--u)); }
+.night-row { display: flex; justify-content: space-between; gap: 2em; font-size: calc(var(--u) * 1.9); font-weight: 700; padding: .2em .6em; border-radius: 10px; }
+.night-row.king { background: #f5c76b22; color: var(--gold); }
+.small-btn { font-size: calc(var(--u) * 1.4) !important; padding: .35em 1em; }
+.ov-night { font-size: calc(var(--u) * 1.8); color: var(--gold); margin: 0; font-weight: 700; }
+
+/* السرقة */
+.steal-banner {
+  display: none; position: absolute; top: calc(var(--u) * -2.2); left: 50%; transform: translateX(-50%); z-index: 3;
+  background: var(--orange); color: #431407; font-weight: 800; font-size: calc(var(--u) * 2.2);
+  padding: .3em 1.2em; border-radius: 999px; white-space: nowrap; box-shadow: 0 0 30px #fdba7488;
+  animation: pulse .6s infinite alternate;
+}
+.q-card.stealing .steal-banner { display: block; }
+.q-card.stealing { box-shadow: 0 0 0 4px var(--orange), 0 30px 80px #0009; }
+.team-box.stealer { border-color: var(--orange); box-shadow: 0 0 34px #fdba7466; }
+.penalty.gain { color: var(--green); }
+
+/* البونص */
+.bonus-badge {
+  display: none; position: absolute; top: calc(var(--u) * -1.8); left: calc(var(--u) * 2); z-index: 2;
+  background: linear-gradient(135deg, #fde68a, #f59e0b); color: #451a03; font-weight: 800;
+  font-size: calc(var(--u) * 1.8); padding: .2em 1em; border-radius: 999px; box-shadow: 0 0 24px #f5c76b;
+}
+.q-card.bonus { box-shadow: 0 0 0 4px #f5c76b, 0 0 60px #f5c76b88, 0 30px 80px #0009; }
+.q-card.bonus .bonus-badge { display: block; }
+.q-card.stealing .bonus-badge { display: none; }
+
+/* منو أنا؟ */
+.q-media.type-clues { height: auto; max-height: none; flex-shrink: 0; padding: calc(var(--u) * 1) 0; }
+.clues-q { list-style: none; margin: 0; padding: 0 6%; width: 100%; display: flex; flex-direction: column; gap: calc(var(--u) * .6); }
+.clue { display: flex; align-items: center; gap: calc(var(--u) * 1.2); padding: .2em .7em; border-radius: 14px; background: #dfe3ee; color: #1e1b4b; font-weight: 800; font-size: calc(var(--u) * 2); transition: all .4s; }
+.clue .n { flex: none; width: 1.45em; height: 1.45em; border-radius: 50%; display: grid; place-items: center; background: #a78bfa; color: #fff; font-size: .75em; }
+.clue:not(.on) { color: transparent; }
+.clue:not(.on) .t { visibility: hidden; }
+.clue:not(.on)::after { content: '؟'; color: #9aa3c0; margin-inline-start: -0.4em; }
+.clue:not(.on) .n { background: #b9bfd3; }
+.clue.on { animation: pop .35s cubic-bezier(.2,1.4,.4,1); background: #ede9fe; }
+
+/* ريموت: السرقة والبونص والتلميحات */
+.r-clues { color: var(--purple); font-weight: 700; }
+body.stealing .r-card { border-color: var(--orange); }
+body.bonus .r-card { border-color: var(--gold); box-shadow: 0 0 20px #f5c76b55; }
+.r-btn.mute { font-size: 15px; padding: 10px; background: transparent; }

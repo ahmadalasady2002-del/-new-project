@@ -12,6 +12,7 @@
 </head>
 <body class="tv">
   <div class="glow"></div>
+  <button class="mute-btn" id="btn-mute" title="الصوت (M)">🔊</button>
 
   <!-- شاشة البداية -->
   <section id="s-title" class="screen active">
@@ -20,6 +21,11 @@
       <span class="chip gold">تحدي الصور</span>
       <div class="btn-row">
         <button class="btn primary big" id="btn-start">ابدأ اللعبة</button>
+      </div>
+      <div class="night hidden" id="night">
+        <h3>🏆 نتائج السهرة</h3>
+        <div id="night-list" class="night-list"></div>
+        <button class="btn ghost small-btn" id="btn-night-reset">سهرة جديدة (صفّر النتائج)</button>
       </div>
       <div class="btn-row small">
         <button class="btn ghost" id="btn-howto">طريقة اللعب</button>
@@ -41,9 +47,12 @@
         <li>كل فريق عنده <b>وقت خاص بيه</b> (٤٥ ثانية مثلاً). الوقت ينزل بس للفريق اللي دوره.</li>
         <li>تطلع صورة. إذا جاوبتوا صح، الحكم يدوس <b>صحيح</b> وينتقل الدور للفريق الثاني.</li>
         <li>ما تعرفونها؟ الحكم يدوس <b>تخطّي</b>، وتنخصم منكم <b>٣ ثواني</b> وتطلع صورة ثانية.</li>
-        <li>الفريق اللي يخلص وقته أول <b>يخسر الجولة</b>. اللي يفوز بعدد الجولات المطلوب ياخذ اللعبة.</li>
+        <li><b>السرقة 🥷:</b> إذا فريق دوس تخطّي، الفريق الثاني عنده 6 ثواني يجاوب نفس الصورة. إذا جاوب صح يسرق 3 ثواني.</li>
+        <li><b>البونص ✨:</b> مرات تطلع صورة ذهبية، واللي يجاوبها صح ياخذ +5 ثواني.</li>
+        <li><b>منو أنا؟ 🕵️:</b> تلميحات تنكشف وحدة ورا الثانية. كل ما تعرفونه أبكر أحسن.</li>
+        <li>الفريق اللي يخلص وقته أول <b>يخسر الجولة</b>. اللي يفوز بعدد الجولات المطلوب ياخذ اللعبة، والنتيجة تنحسب بـ<b>نتائج السهرة</b>.</li>
       </ol>
-      <p class="muted">ما عندكم موبايل للحكم؟ تگدرون تلعبون من نفس الجهاز: <b>Enter</b> = صحيح، <b>S</b> = تخطّي، <b>W</b> = دوّر العجلة أو ابدأ الجولة، <b>P</b> = إيقاف مؤقت.</p>
+      <p class="muted">ما عندكم موبايل للحكم؟ تگدرون تلعبون من نفس الجهاز: <b>Enter</b> = صحيح، <b>S</b> = تخطّي، <b>W</b> = دوّر العجلة أو ابدأ الجولة، <b>P</b> = إيقاف مؤقت، <b>M</b> = الصوت.</p>
       <button class="btn primary" data-go="s-title">رجوع</button>
     </div>
   </section>
@@ -71,6 +80,8 @@
         <div class="setting"><span>وقت كل فريق</span><div class="seg" data-key="time"><button data-v="30">30</button><button data-v="45">45</button><button data-v="60">60</button><button data-v="90">90</button></div></div>
         <div class="setting"><span>الجولات للفوز</span><div class="seg" data-key="target"><button data-v="1">1</button><button data-v="2">2</button><button data-v="3">3</button><button data-v="5">5</button></div></div>
         <div class="setting"><span>طريقة اللعب</span><div class="seg" data-key="play"><button data-v="wheel">العجلة</button><button data-v="mixed">مختلط 🎲</button></div></div>
+        <div class="setting"><span>السرقة 🥷</span><div class="seg" data-key="steal"><button data-v="on">تشتغل</button><button data-v="off">طافية</button></div></div>
+        <div class="setting"><span>البونص ✨</span><div class="seg" data-key="bonus"><button data-v="on">يشتغل</button><button data-v="off">طافي</button></div></div>
         <div class="setting"><span>عرض الصور</span><div class="seg" data-key="mode"><button data-v="normal">عادي</button><button data-v="blur">مضبب</button><button data-v="zoom">زوم</button></div></div>
       </div>
       <div class="btn-row">
@@ -120,6 +131,8 @@
       </div>
 
       <div id="card" class="q-card">
+        <div class="steal-banner" id="steal-banner"></div>
+        <div class="bonus-badge">✨ بونص +5</div>
         <div class="q-prompt" id="q-prompt"></div>
         <div class="q-media" id="q-media"></div>
         <div class="q-check" id="q-check">✓</div>
@@ -131,6 +144,7 @@
           <h2 id="ov-title"></h2>
           <span class="chip" id="ov-winner"></span>
           <p class="muted" id="ov-sub"></p>
+          <p class="ov-night" id="ov-night"></p>
           <div class="btn-row" id="ov-actions"></div>
         </div>
       </div>

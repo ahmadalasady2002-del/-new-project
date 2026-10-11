@@ -46,8 +46,30 @@
     return null;
   }
 
+  // «منو أنا؟»: كل التلميحات مخفية، وتنكشف وحدة ورا الثانية
+  function showClues(media, n) {
+    media.querySelectorAll('.clue').forEach((li, i) => li.classList.toggle('on', i < n));
+  }
+
   // يرجع عنصر HTML للسؤال
   function render(cat, item) {
+    if (cat.type === 'clues') {
+      const ol = document.createElement('ol');
+      ol.className = 'clues-q';
+      item.clues.forEach((c, i) => {
+        const li = document.createElement('li');
+        li.className = 'clue' + (i === 0 ? ' on' : '');
+        const num = document.createElement('span');
+        num.className = 'n';
+        num.textContent = i + 1;
+        const tx = document.createElement('span');
+        tx.className = 't';
+        tx.textContent = c;
+        li.append(num, tx);
+        ol.appendChild(li);
+      });
+      return ol;
+    }
     if (cat.type === 'logo') {
       const ns = 'http://www.w3.org/2000/svg';
       const svg = document.createElementNS(ns, 'svg');
@@ -87,5 +109,5 @@
     return im;
   }
 
-  window.Media = { resolveWiki, preload, imageSrc, render };
+  window.Media = { resolveWiki, preload, imageSrc, render, showClues };
 })();

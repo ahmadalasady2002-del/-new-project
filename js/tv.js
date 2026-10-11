@@ -8,14 +8,20 @@
   const REVEAL_MS = 900;      // مدة عرض ✓ والجواب بعد الإجابة الصحيحة
   const EFFECT_MS = 12000;    // مدة التضبيب/الزوم لحد ما تتوضح الصورة
   const WHEEL_MS = 4200;
+  const STEAL_SECS = 6;       // وقت فرصة السرقة
+  const BONUS_SECS = 5;       // ثواني البونص
+  const BONUS_CHANCE = 0.12;  // تقريباً سؤال من كل 8
+  const CLUE_MS = 6000;       // كل شكد ينكشف تلميح بـ«منو أنا؟»
 
   const S = {
     selected: new Set(['flags', 'apps', 'cars', 'players']),
-    settings: { time: 45, target: 3, mode: 'normal', play: 'wheel' },
+    settings: { time: 45, target: 3, mode: 'normal', play: 'wheel', steal: 'on', bonus: 'on' },
     teams: [{ name: '', time: 45, wins: 0 }, { name: '', time: 45, wins: 0 }],
     cats: [], cat: null, item: null,
     phase: 'setup', turn: 0, roundStarter: 0,
     paused: false, busy: false, lastAnswer: '',
+    steal: null, bonusQ: false, clueShown: 0, clueElapsed: 0,
+    night: loadNight(),
     wheelRot: 0, effect: null,
     refs: new Set(), peer: null, code: null,
     custom: [],
@@ -26,6 +32,7 @@
     $$('.screen').forEach(s => s.classList.toggle('active', s.id === id));
     if (id === 's-cats') renderCats();
     if (id === 's-custom') renderCustomList();
+    if (id === 's-title') renderNight();
   }
   $$('[data-go]').forEach(b => b.addEventListener('click', () => { sfx.click(); show(b.dataset.go); }));
 
@@ -95,7 +102,7 @@
     const sync = () => seg.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === String(S.settings[key])));
     seg.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
       sfx.click();
-      S.settings[key] = (key === 'mode' || key === 'play') ? b.dataset.v : Number(b.dataset.v);
+      S.settings[key] = (key === 'time' || key === 'target') ? Number(b.dataset.v) : b.dataset.v;
       sync();
     }));
     sync();
@@ -201,6 +208,10 @@
       lastAnswer: S.lastAnswer, winner: S.lastWinner,
       category: S.cat ? S.cat.name : '',
       turn: S.turn, target: S.settings.target, mixed: S.settings.play === 'mixed',
+      steal: S.steal ? { team: S.steal.team, left: Math.max(0, Math.ceil(S.steal.left)) } : null,
+      bonus: S.phase === 'play' && S.bonusQ,
+      clues: S.cat && S.cat.type === 'clues' && S.item ? [S.clueShown, S.item.clues.length] : null,
+      muted: sfx.muted,
       teams: S.teams.map(t => ({ name: t.name, time: Math.max(0, Math.ceil(t.time)), wins: t.wins })),
     };
     S.refs.forEach(c => { try { c.open && c.send(st); } catch (e) { console.warn(e); } });
@@ -218,6 +229,7 @@
       case 'pause': togglePause(); break;
       case 'next': next(); break;
       case 'cancel': cancelGame(); break;
+      case 'mute': toggleMute(); break;
     }
   }
 
@@ -247,7 +259,7 @@
     S.roundStarter = 1 - S.roundStarter;
     S.turn = S.roundStarter;
     S.teams.forEach(t => { t.time = S.settings.time; });
-    S.cat = null; S.item = null; S.paused = false;
+    S.cat = null; S.item = null; S.paused = false; S.steal = null; S.bonusQ = false;
     setPhase('wheel');
   }
 
@@ -269,13 +281,32 @@
       box.querySelector('.t-dots').innerHTML = Array.from({ length: S.settings.target },
         (_, k) => `<i class="${k < t.wins ? 'on' : ''}"></i>`).join('');
       box.classList.toggle('active', S.phase === 'play' && S.turn === i);
-      box.classList.toggle('low', S.phase === 'play' && S.turn === i && sec <= 5);
+      box.classList.toggle('low', S.phase === 'play' && S.turn === i && sec <= 5 && !S.steal);
+      box.classList.toggle('stealer', !!S.steal && S.steal.team === i);
     });
     $('#cat-chip').textContent = S.cat ? 'التصنيف: ' + S.cat.name : '';
     $('#cat-chip').style.visibility = S.cat ? 'visible' : 'hidden';
     $('#s-game').classList.toggle('paused', S.paused);
     $('#lc-pause').textContent = S.paused ? 'كمّل' : 'إيقاف';
+    $('#lc-correct').textContent = S.steal ? 'سرقوها ✓' : 'صحيح';
+    $('#lc-skip').textContent = S.steal ? 'ما عرفوا ✗' : 'تخطّي −3';
+    syncMusic();
   }
+
+  // الموسيقى تشتغل بس وقت اللعب
+  function syncMusic() {
+    const want = S.phase === 'play' && !S.paused && !sfx.muted && $('#s-game').classList.contains('active');
+    if (want) ST.music.start(); else ST.music.stop();
+  }
+
+  function toggleMute() {
+    sfx.setMuted(!sfx.muted);
+    $('#btn-mute').textContent = sfx.muted ? '🔇' : '🔊';
+    syncMusic();
+    broadcast();
+  }
+  $('#btn-mute').textContent = sfx.muted ? '🔇' : '🔊';
+  $('#btn-mute').addEventListener('click', () => { sfx.unlock(); toggleMute(); });
 
   // ---------- العجلة ----------
   // القطع مرسومة SVG، والكتابة HTML فوقها. الكتابة تلف ويا العجلة بس تبقى دايماً عدلة
@@ -452,12 +483,19 @@
     if (token !== qToken || S.phase !== 'play') return;
     if (!item) { toast('مشكلة بتحميل الصور'); item = drawItem(cat); }
     S.item = item;
+    S.steal = null;
+    S.bonusQ = S.settings.bonus === 'on' && Math.random() < BONUS_CHANCE;
+    S.clueShown = cat.type === 'clues' ? 1 : 0;
+    S.clueElapsed = 0;
     const card = $('#card');
-    card.classList.remove('correct');
+    card.classList.remove('correct', 'stealing', 'stolen');
+    card.classList.toggle('bonus', S.bonusQ);
+    if (S.bonusQ) sfx.bonus();
     $('#q-prompt').textContent = cat.prompt;
     $('#q-answer').textContent = '';
     const media = $('#q-media');
     media.innerHTML = '';
+    media.className = 'q-media type-' + cat.type;
     const el = Media.render(cat, item);
     media.appendChild(el);
     card.classList.remove('pop'); void card.offsetWidth; card.classList.add('pop');
@@ -489,9 +527,15 @@
 
   function correct() {
     if (S.phase !== 'play' || S.busy || S.paused || !S.item) return;
+    if (S.steal) { stealSuccess(); return; }
     S.busy = true;
     sfx.correct();
     S.lastAnswer = S.item.a;
+    if (S.bonusQ) {
+      S.teams[S.turn].time += BONUS_SECS;
+      flash(S.turn, '+' + BONUS_SECS + 's', 'gain');
+    }
+    revealAllClues();
     if (S.effect) S.effect.finish();
     $('#q-answer').textContent = S.item.a;
     $('#card').classList.add('correct');
@@ -506,22 +550,83 @@
 
   function skip() {
     if (S.phase !== 'play' || S.busy || S.paused || !S.item) return;
+    if (S.steal) { stealFail(); return; }
     sfx.skip();
     S.lastAnswer = S.item.a;
     const t = S.teams[S.turn];
     t.time -= SKIP_PENALTY;
-    flashPenalty(S.turn);
-    toast('الجواب كان: ' + S.item.a, 1600);
+    flash(S.turn, '−' + SKIP_PENALTY + 's');
     renderHud();
     if (t.time <= 0) { endRound(); return; }
+    if (S.settings.steal === 'on') { startSteal(); return; }
+    toast('الجواب كان: ' + S.item.a, 1600);
     nextQuestion();
   }
 
-  function flashPenalty(i) {
+  // ---------- السرقة ----------
+  // بعد التخطّي، الفريق الثاني عنده ثواني قليلة يجاوب نفس الصورة.
+  // وقت الفريقين واگف خلال السرقة.
+  function startSteal() {
+    S.steal = { team: 1 - S.turn, left: STEAL_SECS };
+    sfx.steal();
+    $('#card').classList.add('stealing');
+    updateStealBanner();
+    renderHud();
+    broadcast();
+  }
+
+  function updateStealBanner() {
+    if (!S.steal) return;
+    $('#steal-banner').textContent = `🥷 فرصة سرقة لـ ${S.teams[S.steal.team].name} — ${Math.max(0, Math.ceil(S.steal.left))}`;
+  }
+
+  function stealSuccess() {
+    const thief = S.steal.team;
+    const gain = SKIP_PENALTY + (S.bonusQ ? BONUS_SECS : 0);
+    S.busy = true;
+    sfx.correct();
+    S.teams[thief].time += gain;
+    flash(thief, '+' + gain + 's', 'gain');
+    S.lastAnswer = S.item.a;
+    if (S.effect) S.effect.finish();
+    revealAllClues();
+    $('#q-answer').textContent = '🥷 سرقوها! ' + S.item.a;
+    $('#card').classList.remove('stealing');
+    $('#card').classList.add('correct', 'stolen');
+    S.steal = null;
+    renderHud();
+    broadcast();
+    setTimeout(() => { if (S.phase === 'play') nextQuestion(); }, REVEAL_MS + 300);
+  }
+
+  function stealFail() {
+    S.lastAnswer = S.item.a;
+    S.steal = null;
+    $('#card').classList.remove('stealing');
+    toast('الجواب كان: ' + S.item.a, 1600);
+    renderHud();
+    nextQuestion();
+  }
+
+  // ---------- «منو أنا؟» ----------
+  function revealClue() {
+    if (!S.item || !S.item.clues || S.clueShown >= S.item.clues.length) return;
+    S.clueShown++;
+    S.clueElapsed = 0;
+    Media.showClues($('#q-media'), S.clueShown);
+    sfx.clue();
+    broadcast();
+  }
+  function revealAllClues() {
+    if (S.item && S.item.clues) Media.showClues($('#q-media'), S.item.clues.length);
+  }
+
+  function flash(i, text, cls) {
     const box = $('#tb' + i);
     const f = document.createElement('span');
-    f.className = 'penalty';
-    f.textContent = '−' + SKIP_PENALTY + 's';
+    f.className = 'penalty' + (cls ? ' ' + cls : '');
+    f.dir = 'ltr';
+    f.textContent = text;
     box.appendChild(f);
     setTimeout(() => f.remove(), 1200);
   }
@@ -541,6 +646,8 @@
     if (S.item) S.lastAnswer = S.item.a;
     const winner = 1 - S.turn;
     S.lastWinner = winner;
+    S.steal = null;
+    $('#card').classList.remove('stealing');
     S.teams[winner].wins++;
     const gameOver = S.teams[winner].wins >= S.settings.target;
     S.busy = false;
@@ -548,6 +655,7 @@
     if (S.effect) S.effect.finish();
     sfx.buzzer();
     setTimeout(sfx.end, 450);
+    setTimeout(() => sfx.applause(gameOver ? 3.5 : 2), 700);
     setPhase(gameOver ? 'gameEnd' : 'roundEnd');
     const w = S.teams[winner];
     $('#ov-title').textContent = gameOver ? '🏆 مبروك!' : 'انتهت الجولة!';
@@ -563,7 +671,11 @@
       b.addEventListener('click', () => { sfx.click(); fn(); });
       acts.appendChild(b);
     };
+    $('#ov-night').textContent = '';
     if (gameOver) {
+      S.night[w.name] = (S.night[w.name] || 0) + 1;
+      saveNight();
+      $('#ov-night').textContent = nightText();
       btn('لعبة جديدة', 'primary', newGame);
       btn('القائمة الرئيسية', 'ghost', toMenu);
       confetti();
@@ -592,6 +704,7 @@
     S.busy = false;
     S.paused = false;
     S.item = null;
+    S.steal = null;
     if (S.effect) { S.effect.cancel(); S.effect = null; }
     S.teams.forEach(t => { t.wins = 0; });
     toast('انلغت اللعبة');
@@ -604,7 +717,49 @@
     $('#overlay').classList.remove('show');
     broadcast();
     show('s-title');
+    syncMusic();
   }
+
+  // ---------- نتائج السهرة ----------
+  function loadNight() {
+    try { return JSON.parse(localStorage.getItem('st-night')) || {}; } catch (e) { return {}; }
+  }
+  function saveNight() {
+    try { localStorage.setItem('st-night', JSON.stringify(S.night)); } catch (e) { /* ignore */ }
+  }
+  function nightRows() {
+    return Object.entries(S.night).sort((a, b) => b[1] - a[1]);
+  }
+  function nightText() {
+    const rows = nightRows();
+    if (!rows.length) return '';
+    const tie = rows.length > 1 && rows[0][1] === rows[1][1];
+    return 'نتائج السهرة: ' + rows.map(([n, w]) => `${n} ${w}`).join(' · ')
+      + (tie ? ' — متعادلين على بطل الليلة!' : ` — 👑 بطل الليلة: ${rows[0][0]}`);
+  }
+  function renderNight() {
+    const rows = nightRows();
+    $('#night').classList.toggle('hidden', !rows.length);
+    const list = $('#night-list');
+    list.innerHTML = '';
+    const tie = rows.length > 1 && rows[0][1] === rows[1][1];
+    rows.forEach(([n, w], i) => {
+      const r = document.createElement('div');
+      r.className = 'night-row' + (i === 0 && !tie ? ' king' : '');
+      const a = document.createElement('span');
+      a.textContent = (i === 0 && !tie ? '👑 ' : '') + n;
+      const b = document.createElement('b');
+      b.textContent = w + (w === 1 ? ' فوز' : ' فوزات');
+      r.append(a, b);
+      list.appendChild(r);
+    });
+  }
+  $('#btn-night-reset').addEventListener('click', () => {
+    if (!confirm('تصفّرون نتائج السهرة؟')) return;
+    S.night = {};
+    saveNight();
+    renderNight();
+  });
 
   // ---------- المؤقت ----------
   let lastTick = performance.now();
@@ -613,6 +768,17 @@
     const dt = (now - lastTick) / 1000;
     lastTick = now;
     if (S.phase !== 'play' || S.paused || S.busy) return;
+    if (S.steal) {
+      const b = Math.ceil(S.steal.left);
+      S.steal.left -= dt;
+      if (Math.ceil(S.steal.left) !== b) { updateStealBanner(); broadcast(); sfx.tick(); }
+      if (S.steal.left <= 0) stealFail();
+      return;
+    }
+    if (S.item && S.item.clues && S.clueShown < S.item.clues.length) {
+      S.clueElapsed += dt * 1000;
+      if (S.clueElapsed >= CLUE_MS) revealClue();
+    }
     const t = S.teams[S.turn];
     const before = Math.ceil(t.time);
     t.time -= dt;
@@ -676,8 +842,9 @@
 
   document.addEventListener('keydown', e => {
     if (e.target.matches('input')) return;
-    if (!$('#s-game').classList.contains('active')) return;
     const k = e.key.toLowerCase();
+    if (k === 'm' || k === 'ة') { toggleMute(); return; }
+    if (!$('#s-game').classList.contains('active')) return;
     if (k === 'enter') { e.preventDefault(); S.phase === 'play' ? correct() : next(); }
     else if (k === 's' || k === 'س') skip();
     else if (k === 'w' || k === 'ص' || k === ' ') { e.preventDefault(); spin(); }
@@ -805,6 +972,7 @@
     }
   }
 
+  renderNight();
   loadCustom();
   window.__ST_STATE = S; // للتجربة والتصحيح
 })();
