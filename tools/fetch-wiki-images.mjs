@@ -14,6 +14,9 @@ const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..')
 const API = 'https://en.wikipedia.org/w/api.php';
 const UA = 'ShowtimeGame/1.0 (https://github.com/ahmadalasady2002-del/-new-project; party game)';
 const SIZE = 480;
+// إذا sharp موجودة (بـ GitHub Actions) نضغط كل الصور لـ JPEG خفيف
+let sharp = null;
+try { sharp = (await import('sharp')).default; } catch (e) { console.warn('sharp not available: saving original files'); }
 const outDir = path.join(root, 'assets/wiki');
 fs.mkdirSync(outDir, { recursive: true });
 
@@ -40,7 +43,7 @@ async function api(params) {
 
 // اسم ملف ثابت لكل عنوان
 const fileBase = t => t.normalize('NFKD').replace(/[^\w]+/g, '_').replace(/^_|_$/g, '').slice(0, 50) + '_' +
-  crypto.createHash('md5').update(t).digest('hex').slice(0, 6);
+  crypto.createHash('md5').update('v2:' + t).digest('hex').slice(0, 6);
 
 // 1) صورة كل مقالة (pageimages ترجع بس الصور الحرة)
 const info = {};   // title -> { thumb, file }
@@ -86,7 +89,7 @@ const map = {};
 const credits = [];
 let n = 0;
 for (const [t, v] of Object.entries(info)) {
-  const ext = ((v.thumb.split('?')[0].match(/\.(\w+)$/) || [, 'jpg'])[1].toLowerCase()).replace('jpeg', 'jpg');
+  const ext = sharp ? 'jpg' : ((v.thumb.split('?')[0].match(/\.(\w+)$/) || [, 'jpg'])[1].toLowerCase()).replace('jpeg', 'jpg');
   const name = fileBase(t) + '.' + ext;
   const dest = path.join(outDir, name);
   if (!fs.existsSync(dest)) {
@@ -94,7 +97,15 @@ for (const [t, v] of Object.entries(info)) {
     for (let k = 0; k < 3 && !ok; k++) {
       try {
         const r = await fetch(v.thumb, { headers: { 'User-Agent': UA } });
-        if (r.ok) { fs.writeFileSync(dest, Buffer.from(await r.arrayBuffer())); ok = true; }
+        if (r.ok) {
+          let buf = Buffer.from(await r.arrayBuffer());
+          if (sharp) {
+            buf = await sharp(buf).rotate().resize({ width: SIZE, height: SIZE, fit: 'inside', withoutEnlargement: true })
+              .flatten({ background: '#ffffff' }).jpeg({ quality: 76, mozjpeg: true }).toBuffer();
+          }
+          fs.writeFileSync(dest, buf);
+          ok = true;
+        }
         else await sleep(1500);
       } catch (e) { await sleep(1500); }
     }
