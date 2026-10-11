@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&family=Lalezar&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=202610112039">
+  <link rel="stylesheet" href="css/style.css?v=202610112119">
 </head>
 <body class="tv">
   <div class="glow"></div>
@@ -52,7 +52,8 @@
         <li><b>منو أنا؟ 🕵️:</b> يطلع وصف قصير، مثل «أرجنتيني، رقمه 10»، وتعرفون منو.</li>
         <li>تگدرون تلعبون <b>2 أو 3 أو 4 فرق</b>. ويا أكثر من فريقين، الفريق اللي يخلص وقته يطلع من الجولة والباقين يكملون.</li>
         <li><b>النقاط ⭐:</b> كل جواب صح = نقطة. الجولة تخلص لما يخلص الوقت، و<b>اللي عنده نقاط أكثر يفوز بالجولة</b> حتى لو خلص وقته أول.</li>
-        <li>إذا تعادلوا بالنقاط، يفوز اللي بقى عنده وقت. اللي يفوز بعدد الجولات المطلوب ياخذ اللعبة، والنتيجة تنحسب بـ<b>نتائج السهرة</b>.</li>
+        <li><b>جولة حاسمة ⚡:</b> إذا تعادلوا بالنقاط، الحكم ينبّه الفرق ويبدي سؤال واحد للكل، وأول فريق يجاوب صح يفوز. (إذا طفيتوها، يفوز اللي بقى عنده وقت.)</li>
+        <li><b>عقوبة 😈:</b> بنهاية اللعبة الفريق الخسران تطلعله 3 عقوبات ويختار وحدة. اللي يفوز بعدد الجولات المطلوب ياخذ اللعبة، والنتيجة تنحسب بـ<b>نتائج السهرة</b>.</li>
       </ol>
       <p class="muted">ما عندكم موبايل للحكم؟ تگدرون تلعبون من نفس الجهاز: <b>Enter</b> = صحيح، <b>S</b> = تخطّي (ينقل السؤال)، <b>W</b> = دوّر العجلة أو ابدأ الجولة، <b>P</b> = إيقاف مؤقت، <b>M</b> = الصوت.</p>
       <button class="btn primary" data-go="s-title">رجوع</button>
@@ -84,6 +85,8 @@
         <div class="setting"><span>طريقة اللعب</span><div class="seg" data-key="play"><button data-v="wheel">العجلة</button><button data-v="mixed">مختلط 🎲</button></div></div>
         <div class="setting"><span>مهلة الجواب ⏱️</span><div class="seg" data-key="limit"><button data-v="5">5 ثواني</button><button data-v="10">10</button><button data-v="0">بدون</button></div></div>
         <div class="setting"><span>البونص ✨</span><div class="seg" data-key="bonus"><button data-v="on">يشتغل</button><button data-v="off">طافي</button></div></div>
+        <div class="setting"><span>جولة حاسمة إذا تعادلوا ⚡</span><div class="seg" data-key="speed"><button data-v="on">تشتغل</button><button data-v="off">طافية</button></div></div>
+        <div class="setting"><span>عقوبة للخسران 😈</span><div class="seg" data-key="punish"><button data-v="on">تشتغل</button><button data-v="off">طافية</button></div></div>
         <div class="setting"><span>عرض الصور</span><div class="seg" data-key="mode"><button data-v="normal">عادي</button><button data-v="blur">مضبب</button><button data-v="zoom">زوم</button></div></div>
       </div>
       <div class="btn-row">
@@ -132,6 +135,7 @@
 
       <div id="card" class="q-card">
         <div class="pass-banner" id="pass-banner"></div>
+        <div class="speed-banner">⚡ جولة حاسمة — أول فريق يجاوب يفوز!</div>
         <div class="q-timer" id="q-timer"></div>
         <div class="bonus-badge">✨ بونص +5</div>
         <div class="q-prompt" id="q-prompt"></div>
@@ -147,6 +151,7 @@
           <p class="ov-points" id="ov-points"></p>
           <p class="muted" id="ov-sub"></p>
           <p class="ov-night" id="ov-night"></p>
+          <div class="ov-punish" id="ov-punish"></div>
           <div class="btn-row" id="ov-actions"></div>
         </div>
       </div>
@@ -158,6 +163,7 @@
       <button class="btn warn" id="lc-skip">تخطّي ↪️</button>
       <button class="btn ghost" id="lc-pause">إيقاف</button>
       <button class="btn ghost" id="lc-cancel">إلغاء اللعبة</button>
+      <span class="lc-speed" id="lc-speed"></span>
       <span class="ref-qr-mini" id="ref-mini" title="دخول الحكم">QR</span>
     </footer>
     <div class="toast" id="toast"></div>
@@ -189,14 +195,15 @@
     </div>
   </section>
 
-  <script src="vendor/peerjs.min.js?v=202610112039"></script>
-  <script src="vendor/qrcode.js?v=202610112039"></script>
-  <script src="js/data/countries.js?v=202610112039"></script>
-  <script src="js/data/logos.js?v=202610112039"></script>
-  <script src="js/data/content.js?v=202610112039"></script>
-  <script src="js/common.js?v=202610112039"></script>
-  <script src="js/store.js?v=202610112039"></script>
-  <script src="js/images.js?v=202610112039"></script>
-  <script src="js/tv.js?v=202610112039"></script>
+  <script src="vendor/peerjs.min.js?v=202610112119"></script>
+  <script src="vendor/qrcode.js?v=202610112119"></script>
+  <script src="js/data/countries.js?v=202610112119"></script>
+  <script src="js/data/logos.js?v=202610112119"></script>
+  <script src="js/data/punishments.js?v=202610112119"></script>
+  <script src="js/data/content.js?v=202610112119"></script>
+  <script src="js/common.js?v=202610112119"></script>
+  <script src="js/store.js?v=202610112119"></script>
+  <script src="js/images.js?v=202610112119"></script>
+  <script src="js/tv.js?v=202610112119"></script>
 </body>
 </html>

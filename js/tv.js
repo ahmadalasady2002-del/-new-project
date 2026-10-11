@@ -12,13 +12,13 @@
 
   const S = {
     selected: new Set(['flags', 'apps', 'cars', 'players']),
-    settings: { time: 45, target: 3, mode: 'normal', play: 'wheel', limit: 5, bonus: 'on', teams: 2 },
+    settings: { time: 45, target: 3, mode: 'normal', play: 'wheel', limit: 5, bonus: 'on', teams: 2, speed: 'on', punish: 'on' },
     teams: [],
     teamNames: ['', '', '', ''],
     cats: [], cat: null, item: null,
     phase: 'setup', turn: 0, roundStarter: 0,
     paused: false, busy: false, lastAnswer: '',
-    bonusQ: false, tried: new Set(), qLeft: 0, passed: false,
+    bonusQ: false, tried: new Set(), qLeft: 0, passed: false, speed: null, punish: null,
     night: loadNight(),
     wheelRot: 0, effect: null,
     refs: new Set(), peer: null, code: null,
@@ -228,11 +228,13 @@
     const st = {
       type: 'state',
       phase: S.phase, paused: S.paused,
-      answer: S.phase === 'play' && S.item ? S.item.a : '',
+      answer: (S.phase === 'play' || S.phase === 'speed') && S.item ? S.item.a : '',
       lastAnswer: S.lastAnswer, winner: S.lastWinner,
       category: S.cat ? S.cat.name : '',
       turn: S.turn, target: S.settings.target, mixed: S.settings.play === 'mixed',
       passed: S.phase === 'play' && S.passed,
+      speed: S.speed ? { teams: S.speed.teams } : null,
+      punish: S.punish,
       qLeft: S.phase === 'play' && S.settings.limit ? Math.max(0, Math.ceil(S.qLeft)) : null,
       bonus: S.phase === 'play' && S.bonusQ,
       muted: sfx.muted,
@@ -254,6 +256,11 @@
       case 'next': next(); break;
       case 'cancel': cancelGame(); break;
       case 'mute': toggleMute(); break;
+      case 'speedStart': startSpeed(); break;
+      case 'speedWin': speedWin(msg.team); break;
+      case 'speedSkip': speedSkip(); break;
+      case 'punish': choosePunish(msg.i); break;
+      case 'punishReroll': rollPunish(); break;
     }
   }
 
@@ -283,7 +290,7 @@
     S.roundStarter = (S.roundStarter + 1) % S.teams.length;
     S.turn = S.roundStarter;
     S.teams.forEach(t => { t.time = S.settings.time; t.out = false; t.points = 0; });
-    S.cat = null; S.item = null; S.paused = false; S.passed = false; S.bonusQ = false;
+    S.cat = null; S.item = null; S.paused = false; S.passed = false; S.bonusQ = false; S.speed = null; S.punish = null;
     setPhase('wheel');
   }
 
@@ -291,7 +298,7 @@
     S.phase = p;
     const g = $('#s-game');
     g.dataset.phase = p;
-    if (p !== 'roundEnd' && p !== 'gameEnd') $('#overlay').classList.remove('show');
+    if (p !== 'roundEnd' && p !== 'gameEnd' && p !== 'speedReady') $('#overlay').classList.remove('show');
     renderHud();
     broadcast();
   }
@@ -511,8 +518,31 @@
     return pool[Math.floor(Math.random() * pool.length)];
   }
 
+  // ---------- الأسئلة ما تتكرر ----------
+  // نحفظ الأسئلة اللي طلعت (حتى بين لعبة وثانية). الرزمة تنبني بس من اللي ما طلعت،
+  // وإذا خلصت كل أسئلة التصنيف نبدي من جديد.
+  const SEEN_KEY = 'st-seen';
+  let seen = {};
+  try { seen = JSON.parse(localStorage.getItem(SEEN_KEY)) || {}; } catch (e) { seen = {}; }
+  const itemKey = it => it.a + '|' + (it.t || it.c || it.q || it.src || '');
+  function markSeen(cat, item) {
+    const list = seen[cat.id] || (seen[cat.id] = []);
+    const k = itemKey(item);
+    if (list.indexOf(k) === -1) list.push(k);
+    try { localStorage.setItem(SEEN_KEY, JSON.stringify(seen)); } catch (e) { /* ignore */ }
+  }
+  function refillDeck(cat) {
+    const used = new Set(seen[cat.id] || []);
+    let fresh = cat.items.filter(it => !used.has(itemKey(it)));
+    if (!fresh.length) {           // خلصت كلها: نبدي دورة جديدة
+      seen[cat.id] = [];
+      fresh = cat.items.slice();
+    }
+    cat.deck = shuffle(fresh);
+  }
+
   function drawItem(cat) {
-    if (!cat.deck.length) cat.deck = shuffle(cat.items.slice());
+    if (!cat.deck.length) refillDeck(cat);
     return cat.deck.pop();
   }
 
@@ -520,7 +550,7 @@
   async function nextQuestion() {
     const token = ++qToken;
     S.busy = true;
-    if (S.settings.play === 'mixed') S.cat = pickMixed();
+    if (S.settings.play === 'mixed' || S.phase === 'speed') S.cat = pickMixed();
     const cat = S.cat;
     renderHud();
     let item = null;
@@ -530,14 +560,15 @@
       const src = Media.imageSrc(cat, cand);
       if (!src || await Promise.race([Media.preload(src), wait(6000).then(() => false)])) { item = cand; break; }
     }
-    if (token !== qToken || S.phase !== 'play') return;
+    if (token !== qToken || (S.phase !== 'play' && S.phase !== 'speed')) return;
     if (!item) { toast('مشكلة بتحميل الصور'); item = drawItem(cat); }
     S.item = item;
+    markSeen(cat, item);
     S.tried = new Set();
     S.passed = false;
     S.qLeft = S.settings.limit;
     updateQTimer();
-    S.bonusQ = S.settings.bonus === 'on' && Math.random() < BONUS_CHANCE;
+    S.bonusQ = S.phase === 'play' && S.settings.bonus === 'on' && Math.random() < BONUS_CHANCE;
     const card = $('#card');
     card.classList.remove('correct', 'passed');
     card.classList.toggle('bonus', S.bonusQ);
@@ -552,7 +583,7 @@
     card.classList.remove('pop'); void card.offsetWidth; card.classList.add('pop');
     applyEffect(el);
     // نحضّر صورة السؤال الجاي بالخلفية
-    if (!cat.deck.length) cat.deck = shuffle(cat.items.slice());
+    if (!cat.deck.length) refillDeck(cat);
     const nxt = cat.deck[cat.deck.length - 1];
     const ns = nxt && Media.imageSrc(cat, nxt);
     if (ns) Media.preload(ns);
@@ -686,7 +717,146 @@
       nextQuestion();
       return;
     }
+    finishRound();
+  }
+
+  // ---------- جولة السرعة الحاسمة ----------
+  // إذا تعادلوا بالنقاط: الحكم ينبّه الفرق ويدوس «ابدأ»، يطلع سؤال واحد للكل،
+  // والحكم يدوس على الفريق اللي جاوب أول.
+  function finishRound() {
+    const max = Math.max(...S.teams.map(t => t.points));
+    const tied = S.teams.map((t, i) => i).filter(i => S.teams[i].points === max);
+    if (tied.length > 1 && S.settings.speed === 'on') { speedReady(tied); return; }
     endRound(roundWinner());
+  }
+
+  function speedReady(tied) {
+    qToken++;
+    S.busy = false;
+    S.passed = false;
+    if (S.effect) S.effect.finish();
+    S.speed = { teams: tied };
+    sfx.bonus();
+    setPhase('speedReady');
+    const names = tied.map(i => S.teams[i].name).join(' و ');
+    $('#ov-title').textContent = '⚡ جولة حاسمة!';
+    $('#ov-winner').textContent = `تعادل بالنقاط: ${names} (${S.teams[tied[0]].points} ⭐)`;
+    $('#ov-points').textContent = 'سؤال واحد للكل، وأول فريق يجاوب صح يفوز بالجولة';
+    $('#ov-sub').textContent = 'الحكم ينبّه الفرق «استعدّوا» ويدوس ابدأ';
+    $('#ov-night').textContent = '';
+    $('#ov-punish').innerHTML = '';
+    const acts = $('#ov-actions');
+    acts.innerHTML = '';
+    const b = document.createElement('button');
+    b.className = 'btn primary';
+    b.textContent = '⚡ ابدأ الجولة الحاسمة';
+    b.addEventListener('click', startSpeed);
+    acts.appendChild(b);
+    $('#overlay').classList.add('show');
+    renderSpeedCtrl();
+  }
+
+  function startSpeed() {
+    if (S.phase !== 'speedReady') return;
+    sfx.click();
+    setPhase('speed');
+    renderSpeedCtrl();
+    nextQuestion();
+  }
+
+  function speedWin(i) {
+    if (S.phase !== 'speed' || S.busy || !S.item || !S.speed || S.speed.teams.indexOf(i) === -1) return;
+    S.busy = true;
+    sfx.correct();
+    S.lastAnswer = S.item.a;
+    if (S.effect) S.effect.finish();
+    setAnswer('⚡ ' + S.teams[i].name + ' — ' + S.item.a);
+    $('#card').classList.add('correct');
+    broadcast();
+    setTimeout(() => endRound(i, true), REVEAL_MS + 300);
+  }
+
+  function speedSkip() {
+    if (S.phase !== 'speed' || S.busy || !S.item) return;
+    toast('محد عرفها 🤷 الجواب: ' + S.item.a + ' — سؤال ثاني', 2200);
+    nextQuestion();
+  }
+
+  // أزرار الفرق المتعادلة بالشاشة (إذا ماكو حكم)
+  function renderSpeedCtrl() {
+    const box = $('#lc-speed');
+    box.innerHTML = '';
+    if (!S.speed || S.phase !== 'speed') return;
+    S.speed.teams.forEach(i => {
+      const b = document.createElement('button');
+      b.className = 'btn ok';
+      b.textContent = '⚡ ' + S.teams[i].name;
+      b.addEventListener('click', () => speedWin(i));
+      box.appendChild(b);
+    });
+    const n = document.createElement('button');
+    n.className = 'btn warn';
+    n.textContent = 'محد عرفها';
+    n.addEventListener('click', speedSkip);
+    box.appendChild(n);
+  }
+
+  // ---------- العقوبات ----------
+  // الفريق الخسران (أقل جولات، وإذا تعادلوا أقل نقاط) تطلعله 3 عقوبات يختار وحدة.
+  function startPunish(winner) {
+    S.punish = null;
+    if (S.settings.punish !== 'on') return;
+    let loser = -1;
+    S.teams.forEach((t, i) => {
+      if (i === winner) return;
+      const l = S.teams[loser];
+      if (loser === -1 || t.wins < l.wins || (t.wins === l.wins && t.total < l.total)) loser = i;
+    });
+    if (loser === -1) return;
+    S.punish = { team: loser, name: S.teams[loser].name, options: [], chosen: null };
+    rollPunish();
+  }
+
+  function rollPunish() {
+    if (!S.punish || S.punish.chosen != null) return;
+    S.punish.options = shuffle(PUNISHMENTS.slice()).slice(0, 3);
+    renderPunish();
+    broadcast();
+  }
+
+  function choosePunish(i) {
+    if (!S.punish || !S.punish.options[i]) return;
+    S.punish.chosen = i;
+    sfx.bonus();
+    renderPunish();
+    broadcast();
+  }
+
+  function renderPunish() {
+    const box = $('#ov-punish');
+    box.innerHTML = '';
+    if (!S.punish) return;
+    const h = document.createElement('div');
+    h.className = 'pun-title';
+    h.textContent = S.punish.chosen == null
+      ? `😈 عقوبة لـ ${S.punish.name} — اختاروا وحدة:`
+      : `😈 عقوبة ${S.punish.name}:`;
+    box.appendChild(h);
+    S.punish.options.forEach((o, i) => {
+      if (S.punish.chosen != null && S.punish.chosen !== i) return;
+      const b = document.createElement('button');
+      b.className = 'pun-opt' + (S.punish.chosen === i ? ' chosen' : '');
+      b.textContent = o;
+      b.addEventListener('click', () => choosePunish(i));
+      box.appendChild(b);
+    });
+    if (S.punish.chosen == null) {
+      const r = document.createElement('button');
+      r.className = 'btn ghost small-btn';
+      r.textContent = '🔄 غيّرهن';
+      r.addEventListener('click', rollPunish);
+      box.appendChild(r);
+    }
   }
 
   // الفايز بالجولة: اللي جاوب أكثر (نقاط أكثر). إذا تعادلوا، اللي بقى عنده وقت أكثر.
@@ -699,8 +869,10 @@
     return best;
   }
 
-  function endRound(winner) {
-    if (S.phase !== 'play') return;
+  function endRound(winner, bySpeed) {
+    if (S.phase !== 'play' && S.phase !== 'speed') return;
+    S.speed = null;
+    renderSpeedCtrl();
     if (S.item) S.lastAnswer = S.item.a;
     S.lastWinner = winner;
     S.passed = false;
@@ -713,6 +885,7 @@
     setTimeout(sfx.end, 450);
     setTimeout(() => sfx.applause(gameOver ? 3.5 : 2), 700);
     setPhase(gameOver ? 'gameEnd' : 'roundEnd');
+    broadcastLater();
     const w = S.teams[winner];
     $('#ov-title').textContent = gameOver ? '🏆 مبروك!' : 'انتهت الجولة!';
     $('#ov-winner').textContent = gameOver ? w.name + ' فاز باللعبة' : 'الفايز: ' + w.name;
@@ -721,7 +894,9 @@
       : S.teams.map(t => `${t.name} ${t.wins}`).join(' · ');
     $('#ov-sub').textContent = (gameOver ? 'الجولات: ' : `${S.settings.target} جولات = الفوز باللعبة · `) + score;
     $('#ov-points').textContent = 'نقاط الجولة: ' + S.teams.map(t => `${t.name} ${t.points} ⭐`).join(' · ')
-      + (w.out ? ` — ⏰ ${w.name} خلص وقته بس جاوب أكثر!` : '');
+      + (bySpeed ? ` — ⚡ ${w.name} فاز بالجولة الحاسمة!` : (w.out ? ` — ⏰ ${w.name} خلص وقته بس جاوب أكثر!` : ''));
+    S.punish = null;
+    $('#ov-punish').innerHTML = '';
     const acts = $('#ov-actions');
     acts.innerHTML = '';
     const btn = (label, cls, fn) => {
@@ -736,6 +911,7 @@
       S.night[w.name] = (S.night[w.name] || 0) + 1;
       saveNight();
       $('#ov-night').textContent = nightText();
+      startPunish(winner);
       btn('لعبة جديدة', 'primary', newGame);
       btn('القائمة الرئيسية', 'ghost', toMenu);
       confetti();
@@ -744,6 +920,9 @@
     }
     $('#overlay').classList.add('show');
   }
+
+  // بعد ما نجهّز العقوبة نرسل الحالة للحكم مرة ثانية
+  function broadcastLater() { setTimeout(broadcast, 0); }
 
   function next() {
     if (S.phase === 'roundEnd') nextRound();
@@ -765,6 +944,9 @@
     S.paused = false;
     S.item = null;
     S.passed = false;
+    S.speed = null;
+    S.punish = null;
+    renderSpeedCtrl();
     if (S.effect) { S.effect.cancel(); S.effect = null; }
     S.teams.forEach(t => { t.wins = 0; t.total = 0; });
     toast('انلغت اللعبة');
@@ -901,6 +1083,12 @@
     const k = e.key.toLowerCase();
     if (k === 'm' || k === 'ة') { toggleMute(); return; }
     if (!$('#s-game').classList.contains('active')) return;
+    if (S.phase === 'speedReady' && k === 'enter') { e.preventDefault(); startSpeed(); return; }
+    if (S.phase === 'speed') {
+      if (k >= '1' && k <= '4') { const i = Number(k) - 1; if (S.speed && S.speed.teams.indexOf(i) !== -1) speedWin(i); }
+      else if (k === 's' || k === 'س') speedSkip();
+      return;
+    }
     if (k === 'enter') { e.preventDefault(); S.phase === 'play' ? correct() : next(); }
     else if (k === 's' || k === 'س') skip();
     else if (k === 'w' || k === 'ص' || k === ' ') { e.preventDefault(); spin(); }

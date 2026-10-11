@@ -215,7 +215,8 @@ h3 { font-size: calc(var(--u) * 2.2); margin: calc(var(--u) * 2) 0 calc(var(--u)
   --cw: min(calc(var(--u) * 76), 94vw); width: var(--cw); height: 100%; max-height: 100%;
   box-shadow: 0 30px 80px #0009;
 }
-#s-game[data-phase="play"] .q-card, #s-game[data-phase="roundEnd"] .q-card, #s-game[data-phase="gameEnd"] .q-card { display: flex; }
+#s-game[data-phase="play"] .q-card, #s-game[data-phase="roundEnd"] .q-card, #s-game[data-phase="gameEnd"] .q-card,
+#s-game[data-phase="speedReady"] .q-card, #s-game[data-phase="speed"] .q-card { display: flex; }
 .q-card.pop { animation: pop .35s cubic-bezier(.2,1.4,.4,1); }
 @keyframes pop { from { transform: scale(.85); opacity: 0; } }
 .q-prompt { font-weight: 800; font-size: calc(var(--u) * 2.6); margin-bottom: calc(var(--u) * 1.2); }
@@ -247,14 +248,15 @@ h3 { font-size: calc(var(--u) * 2.2); margin: calc(var(--u) * 2) 0 calc(var(--u)
 .q-answer span { background: #f7f8fcee; padding: .1em .7em; border-radius: 14px; box-shadow: 0 6px 20px #0002; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
 
 /* نهاية الجولة */
-.overlay { position: absolute; top: 0; right: 0; bottom: 0; left: 0; display: none; align-items: center; justify-content: center; background: #0a0e1caa; backdrop-filter: blur(3px); z-index: 5; }
+.overlay { position: fixed; top: 0; right: 0; bottom: 0; left: 0; display: none; overflow-y: auto; padding: calc(var(--u) * 2) 0; align-items: center; justify-content: center; background: #0a0e1caa; backdrop-filter: blur(3px); z-index: 5; }
 .overlay.show { display: flex; animation: fade .3s; }
 .overlay-card {
   background: var(--card); border: 1.5px solid var(--line); border-radius: calc(var(--radius) * 1.4);
-  padding: calc(var(--u) * 3) calc(var(--u) * 5); text-align: center; box-shadow: 0 30px 80px #000a;
-  display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * 1.2);
+  margin: auto; max-width: 94vw;
+  padding: calc(var(--u) * 2.4) calc(var(--u) * 4); text-align: center; box-shadow: 0 30px 80px #000a;
+  display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * .9);
 }
-.overlay-card h2 { margin: 0; font-size: calc(var(--u) * 4.4); }
+.overlay-card h2 { margin: 0; font-size: calc(var(--u) * 4); }
 .overlay-card .chip { font-size: calc(var(--u) * 2.2); color: var(--gold); }
 .overlay-card p { font-size: calc(var(--u) * 1.8); margin: 0; }
 
@@ -427,3 +429,36 @@ body.bonus .r-card { border-color: var(--gold); box-shadow: 0 0 20px #f5c76b55; 
   .hud .team-box { min-width: 0; flex: 1; }
   .hud .hud-mid { order: 99; flex-basis: 100%; flex-direction: row; justify-content: center; padding-top: 0; }
 }
+
+/* جولة السرعة الحاسمة */
+.speed-banner {
+  display: none; position: absolute; top: calc(var(--u) * -2.2); left: 50%; transform: translateX(-50%); z-index: 3;
+  background: linear-gradient(135deg, #fde68a, #f59e0b); color: #451a03; font-weight: 800; font-size: calc(var(--u) * 2.1);
+  padding: .3em 1.2em; border-radius: 999px; white-space: nowrap; box-shadow: 0 0 30px #f59e0b88; animation: pulse .6s infinite alternate;
+}
+#s-game[data-phase="speed"] .speed-banner { display: block; }
+#s-game[data-phase="speed"] .q-card { box-shadow: 0 0 0 4px #f59e0b, 0 0 60px #f59e0b66, 0 30px 80px #0009; }
+#s-game[data-phase="speed"] .q-timer, #s-game[data-phase="speed"] .bonus-badge, #s-game[data-phase="speed"] .pass-banner { display: none; }
+.lc-speed { display: contents; }
+
+/* العقوبات */
+.ov-punish { display: flex; flex-direction: column; align-items: stretch; gap: calc(var(--u) * .6); width: 100%; max-width: calc(var(--u) * 60); }
+.ov-punish:empty { display: none; }
+.pun-title { font-weight: 800; font-size: calc(var(--u) * 2.2); color: var(--orange); margin-top: calc(var(--u) * .6); }
+.pun-opt {
+  background: var(--card2); border: 2px solid var(--line); border-radius: 14px; padding: .35em 1em; cursor: pointer;
+  font-weight: 700; font-size: calc(var(--u) * 1.8); text-align: center; transition: all .2s;
+}
+.pun-opt:hover { border-color: var(--orange); }
+.pun-opt.chosen { border-color: var(--orange); background: #431407; color: #fed7aa; font-size: calc(var(--u) * 2.6); animation: pop .4s cubic-bezier(.2,1.4,.4,1); }
+
+/* ريموت: الجولة الحاسمة والعقوبة */
+.r-box { display: none; flex-direction: column; gap: 10px; }
+body[data-phase="speedReady"] #r-speed-ready, body[data-phase="speed"] #r-speed, body.has-punish #r-punish { display: flex; }
+body[data-phase="speedReady"] .r-card { border-color: #f59e0b; box-shadow: 0 0 24px #f59e0b66; }
+.r-alert { background: linear-gradient(135deg, #fde68a, #f59e0b); color: #451a03; border-radius: var(--radius); padding: 14px; font-weight: 800; font-size: 18px; text-align: center; }
+.r-btn.gold { display: block; background: linear-gradient(135deg, #fde68a, #f59e0b); color: #451a03; border-color: transparent; font-size: 22px; }
+.r-btn.team { display: block; background: var(--green); color: #052e16; border-color: transparent; }
+.r-btn.pun { display: block; font-size: 17px; text-align: right; }
+.r-btn.pun.chosen { border-color: var(--orange); background: #431407; color: #fed7aa; }
+.r-sub { color: var(--orange); font-weight: 800; font-size: 16px; }

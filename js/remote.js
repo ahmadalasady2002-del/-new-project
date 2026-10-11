@@ -78,7 +78,7 @@
 
   function send(cmd) {
     if (!conn || !conn.open) { status('مو متصل'); scheduleRetry(); return; }
-    conn.send({ cmd });
+    conn.send(typeof cmd === 'string' ? { cmd } : cmd);
     if (navigator.vibrate) navigator.vibrate(30);
   }
 
@@ -88,13 +88,65 @@
   $('#r-next').addEventListener('click', () => send('next'));
   $('#r-pause').addEventListener('click', () => send('pause'));
   $('#r-mute').addEventListener('click', () => send('mute'));
+  $('#r-speed-start').addEventListener('click', () => send('speedStart'));
+  $('#r-speed-skip').addEventListener('click', () => send('speedSkip'));
+  let lastPhase = null;
   $('#r-cancel').addEventListener('click', () => {
     if (confirm('متأكد تريد تلغي اللعبة وترجع للبداية؟')) send('cancel');
   });
 
+  function renderSpeed() {
+    const box = $('#r-speed-teams');
+    if (!state || state.phase !== 'speed' || !state.speed) { box.innerHTML = ''; return; }
+    const key = state.speed.teams.join(',');
+    if (box.dataset.key === key) return;
+    box.dataset.key = key;
+    box.innerHTML = '';
+    state.speed.teams.forEach(i => {
+      const b = document.createElement('button');
+      b.className = 'r-btn team';
+      b.textContent = '⚡ ' + state.teams[i].name + ' جاوب أول';
+      b.addEventListener('click', () => send({ cmd: 'speedWin', team: i }));
+      box.appendChild(b);
+    });
+  }
+
+  function renderPunish() {
+    const box = $('#r-punish');
+    const pun = state && state.phase === 'gameEnd' ? state.punish : null;
+    document.body.classList.toggle('has-punish', !!pun);
+    box.innerHTML = '';
+    if (!pun) return;
+    const h = document.createElement('span');
+    h.className = 'r-sub';
+    h.textContent = pun.chosen == null ? `😈 عقوبة ${pun.name} — خلّيهم يختارون:` : `😈 عقوبة ${pun.name}:`;
+    box.appendChild(h);
+    pun.options.forEach((o, i) => {
+      if (pun.chosen != null && pun.chosen !== i) return;
+      const b = document.createElement('button');
+      b.className = 'r-btn pun' + (pun.chosen === i ? ' chosen' : '');
+      b.textContent = o;
+      b.addEventListener('click', () => send({ cmd: 'punish', i }));
+      box.appendChild(b);
+    });
+    if (pun.chosen == null) {
+      const r = document.createElement('button');
+      r.className = 'r-btn ghost';
+      r.style.display = 'block';
+      r.textContent = '🔄 غيّرهن';
+      r.addEventListener('click', () => send('punishReroll'));
+      box.appendChild(r);
+    }
+  }
+
   function render() {
     const p = state ? state.phase : 'none';
     document.body.dataset.phase = p;
+    // تنبيه (اهتزاز) لما تبدي الجولة الحاسمة
+    if (p === 'speedReady' && lastPhase !== 'speedReady' && navigator.vibrate) navigator.vibrate([250, 120, 250]);
+    lastPhase = p;
+    renderSpeed();
+    renderPunish();
     document.body.classList.toggle('paused', !!(state && state.paused));
     const ans = $('#r-answer'), label = $('#r-label');
     const passed = p === 'play' && state.passed;
@@ -116,6 +168,12 @@
       const w = state.teams[state.winner] || state.teams[0];
       label.textContent = (p === 'gameEnd' ? 'انتهت اللعبة' : 'انتهت الجولة') + ' · آخر جواب: ' + (state.lastAnswer || '—');
       ans.textContent = (p === 'gameEnd' ? '🏆 ' : 'الفايز: ') + w.name;
+    } else if (p === 'speedReady' && state.speed) {
+      label.textContent = '⚡ تعادل بالنقاط';
+      ans.textContent = 'نبّه الفرق: ' + state.speed.teams.map(i => state.teams[i].name).join(' و ') + ' — استعدّوا!';
+    } else if (p === 'speed') {
+      label.textContent = '⚡ جولة حاسمة · الجواب';
+      ans.textContent = state.answer || '…';
     } else if (p === 'setup') {
       label.textContent = 'الشاشة دتتجهز';
       ans.textContent = '…';
