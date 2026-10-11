@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&family=Lalezar&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=202610111429">
+  <link rel="stylesheet" href="css/style.css?v=202610112030">
 </head>
 <body class="tv">
   <div class="glow"></div>
@@ -51,7 +51,8 @@
         <li><b>البونص ✨:</b> مرات تطلع صورة ذهبية، واللي يجاوبها صح ياخذ +5 ثواني.</li>
         <li><b>منو أنا؟ 🕵️:</b> يطلع وصف قصير، مثل «أرجنتيني، رقمه 10»، وتعرفون منو.</li>
         <li>تگدرون تلعبون <b>2 أو 3 أو 4 فرق</b>. ويا أكثر من فريقين، الفريق اللي يخلص وقته يطلع من الجولة والباقين يكملون.</li>
-        <li>الفريق اللي يخلص وقته أول <b>يخسر الجولة</b>. اللي يفوز بعدد الجولات المطلوب ياخذ اللعبة، والنتيجة تنحسب بـ<b>نتائج السهرة</b>.</li>
+        <li><b>النقاط ⭐:</b> كل جواب صح = نقطة. الجولة تخلص لما يخلص الوقت، و<b>اللي عنده نقاط أكثر يفوز بالجولة</b> حتى لو خلص وقته أول.</li>
+        <li>إذا تعادلوا بالنقاط، يفوز اللي بقى عنده وقت. اللي يفوز بعدد الجولات المطلوب ياخذ اللعبة، والنتيجة تنحسب بـ<b>نتائج السهرة</b>.</li>
       </ol>
       <p class="muted">ما عندكم موبايل للحكم؟ تگدرون تلعبون من نفس الجهاز: <b>Enter</b> = صحيح، <b>S</b> = تخطّي (ينقل السؤال)، <b>W</b> = دوّر العجلة أو ابدأ الجولة، <b>P</b> = إيقاف مؤقت، <b>M</b> = الصوت.</p>
       <button class="btn primary" data-go="s-title">رجوع</button>
@@ -143,6 +144,7 @@
         <div class="overlay-card">
           <h2 id="ov-title"></h2>
           <span class="chip" id="ov-winner"></span>
+          <p class="ov-points" id="ov-points"></p>
           <p class="muted" id="ov-sub"></p>
           <p class="ov-night" id="ov-night"></p>
           <div class="btn-row" id="ov-actions"></div>
@@ -187,14 +189,14 @@
     </div>
   </section>
 
-  <script src="vendor/peerjs.min.js?v=202610111429"></script>
-  <script src="vendor/qrcode.js?v=202610111429"></script>
-  <script src="js/data/countries.js?v=202610111429"></script>
-  <script src="js/data/logos.js?v=202610111429"></script>
-  <script src="js/data/content.js?v=202610111429"></script>
-  <script src="js/common.js?v=202610111429"></script>
-  <script src="js/store.js?v=202610111429"></script>
-  <script src="js/images.js?v=202610111429"></script>
-  <script src="js/tv.js?v=202610111429"></script>
+  <script src="vendor/peerjs.min.js?v=202610112030"></script>
+  <script src="vendor/qrcode.js?v=202610112030"></script>
+  <script src="js/data/countries.js?v=202610112030"></script>
+  <script src="js/data/logos.js?v=202610112030"></script>
+  <script src="js/data/content.js?v=202610112030"></script>
+  <script src="js/common.js?v=202610112030"></script>
+  <script src="js/store.js?v=202610112030"></script>
+  <script src="js/images.js?v=202610112030"></script>
+  <script src="js/tv.js?v=202610112030"></script>
 </body>
 </html>

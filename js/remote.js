@@ -137,7 +137,7 @@
           const el = document.createElement('div');
           el.className = 'r-team c' + i;
           el.id = 'rt' + i;
-          el.innerHTML = '<span class="n"></span><b class="t"></b><span class="d"></span>';
+          el.innerHTML = '<span class="n"></span><b class="t"></b><span class="p"></span><span class="d"></span>';
           box.appendChild(el);
         });
       }
@@ -146,6 +146,7 @@
         el.classList.toggle('out', !!t.out);
         el.querySelector('.n').textContent = t.name;
         el.querySelector('.t').textContent = t.out ? '❌' : t.time + 's';
+        el.querySelector('.p').textContent = '⭐ ' + (t.points || 0);
         el.querySelector('.d').textContent = '●'.repeat(t.wins) + '○'.repeat(Math.max(0, state.target - t.wins));
         el.classList.toggle('active', p === 'play' && state.turn === i);
       });

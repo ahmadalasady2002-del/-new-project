@@ -133,7 +133,7 @@
   $('#btn-teams-next').addEventListener('click', () => {
     sfx.click();
     S.teams = Array.from({ length: S.settings.teams }, (_, i) => ({
-      name: S.teamNames[i].trim() || 'الفريق ' + (i + 1), time: S.settings.time, wins: 0, out: false,
+      name: S.teamNames[i].trim() || 'الفريق ' + (i + 1), time: S.settings.time, wins: 0, out: false, points: 0, total: 0,
     }));
     buildHud();
     show('s-join');
@@ -236,7 +236,7 @@
       qLeft: S.phase === 'play' && S.settings.limit ? Math.max(0, Math.ceil(S.qLeft)) : null,
       bonus: S.phase === 'play' && S.bonusQ,
       muted: sfx.muted,
-      teams: S.teams.map(t => ({ name: t.name, time: Math.max(0, Math.ceil(t.time)), wins: t.wins, out: !!t.out })),
+      teams: S.teams.map(t => ({ name: t.name, time: Math.max(0, Math.ceil(t.time)), wins: t.wins, out: !!t.out, points: t.points })),
     };
     S.refs.forEach(c => { try { c.open && c.send(st); } catch (e) { console.warn(e); } });
   }
@@ -271,7 +271,7 @@
       return;
     }
     S.cats = cats;
-    S.teams.forEach(t => { t.wins = 0; });
+    S.teams.forEach(t => { t.wins = 0; t.total = 0; });
     S.roundStarter = S.teams.length - 1;      // nextRound يدوّرها، فالجولة الأولى يبدي الفريق 1
     show('s-game');
     $('#s-game').classList.toggle('mixed', S.settings.play === 'mixed');
@@ -282,7 +282,7 @@
   function nextRound() {
     S.roundStarter = (S.roundStarter + 1) % S.teams.length;
     S.turn = S.roundStarter;
-    S.teams.forEach(t => { t.time = S.settings.time; t.out = false; });
+    S.teams.forEach(t => { t.time = S.settings.time; t.out = false; t.points = 0; });
     S.cat = null; S.item = null; S.paused = false; S.passed = false; S.bonusQ = false;
     setPhase('wheel');
   }
@@ -307,7 +307,7 @@
       b.id = 'tb' + i;
       // ويا فريقين: الأول يمين والثاني يسار والتصنيف بالنص
       b.style.setProperty('--o', S.teams.length === 2 ? (i === 0 ? 0 : 2) : i);
-      b.innerHTML = '<span class="t-name"></span><span class="t-time"></span><span class="t-dots"></span><span class="turn">الدور</span>';
+      b.innerHTML = '<span class="t-name"></span><span class="t-time"></span><span class="t-pts"></span><span class="t-dots"></span><span class="turn">الدور</span>';
       hud.appendChild(b);
     });
   }
@@ -330,6 +330,7 @@
       box.querySelector('.t-name').textContent = t.name;
       const sec = Math.max(0, Math.ceil(t.time));
       box.querySelector('.t-time').innerHTML = sec + '<small>s</small>';
+      box.querySelector('.t-pts').textContent = '⭐ ' + t.points;
       box.querySelector('.t-dots').innerHTML = Array.from({ length: S.settings.target },
         (_, k) => `<i class="${k < t.wins ? 'on' : ''}"></i>`).join('');
       box.classList.toggle('active', S.phase === 'play' && S.turn === i);
@@ -580,10 +581,15 @@
     S.busy = true;
     sfx.correct();
     S.lastAnswer = S.item.a;
+    // كل جواب صح = نقطة
+    S.teams[S.turn].points++;
+    S.teams[S.turn].total++;
+    flash(S.turn, '+1 ⭐', 'gain');
     if (S.bonusQ) {
       S.teams[S.turn].time += BONUS_SECS;
-      flash(S.turn, '+' + BONUS_SECS + 's', 'gain');
+      setTimeout(() => flash(S.turn, '+' + BONUS_SECS + 's', 'gain'), 350);
     }
+    renderHud();
     if (S.effect) S.effect.finish();
     $('#q-answer').textContent = S.item.a;
     $('#card').classList.add('correct');
@@ -671,7 +677,17 @@
       nextQuestion();
       return;
     }
-    endRound(alive[0]);
+    endRound(roundWinner());
+  }
+
+  // الفايز بالجولة: اللي جاوب أكثر (نقاط أكثر). إذا تعادلوا، اللي بقى عنده وقت أكثر.
+  function roundWinner() {
+    let best = 0;
+    S.teams.forEach((t, i) => {
+      const b = S.teams[best];
+      if (t.points > b.points || (t.points === b.points && t.time > b.time)) best = i;
+    });
+    return best;
   }
 
   function endRound(winner) {
@@ -694,7 +710,9 @@
     const score = S.teams.length === 2
       ? `${S.teams[0].name} ${S.teams[0].wins} — ${S.teams[1].wins} ${S.teams[1].name}`
       : S.teams.map(t => `${t.name} ${t.wins}`).join(' · ');
-    $('#ov-sub').textContent = (gameOver ? 'النتيجة النهائية: ' : `${S.settings.target} جولات = الفوز باللعبة · `) + score;
+    $('#ov-sub').textContent = (gameOver ? 'الجولات: ' : `${S.settings.target} جولات = الفوز باللعبة · `) + score;
+    $('#ov-points').textContent = 'نقاط الجولة: ' + S.teams.map(t => `${t.name} ${t.points} ⭐`).join(' · ')
+      + (w.out ? ` — ⏰ ${w.name} خلص وقته بس جاوب أكثر!` : '');
     const acts = $('#ov-actions');
     acts.innerHTML = '';
     const btn = (label, cls, fn) => {
@@ -724,7 +742,7 @@
   }
 
   function newGame() {
-    S.teams.forEach(t => { t.wins = 0; });
+    S.teams.forEach(t => { t.wins = 0; t.total = 0; });
     S.roundStarter = S.teams.length - 1;
     nextRound();
   }
@@ -739,7 +757,7 @@
     S.item = null;
     S.passed = false;
     if (S.effect) { S.effect.cancel(); S.effect = null; }
-    S.teams.forEach(t => { t.wins = 0; });
+    S.teams.forEach(t => { t.wins = 0; t.total = 0; });
     toast('انلغت اللعبة');
     toMenu();
   }

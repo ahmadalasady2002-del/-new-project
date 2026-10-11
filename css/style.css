@@ -375,3 +375,9 @@ body.bonus .r-card { border-color: var(--gold); box-shadow: 0 0 20px #f5c76b55; 
 /* كمّل المثل */
 .text-q { font-weight: 800; font-size: calc(var(--u) * 4.6); line-height: 1.5; color: #1e1b4b; text-align: center; padding: 0 6%; }
 .text-q.long { font-size: calc(var(--u) * 3.6); }
+
+/* النقاط */
+.team-box .t-pts { font-weight: 800; font-size: calc(var(--u) * 2.2); color: var(--gold); line-height: 1.2; }
+.hud.many .team-box .t-pts { font-size: calc(var(--u) * 1.9); }
+.ov-points { font-size: calc(var(--u) * 2.2); font-weight: 800; color: var(--text); margin: 0; }
+.r-team .p { color: var(--gold); font-weight: 800; font-size: 15px; }
