@@ -543,7 +543,7 @@
     card.classList.toggle('bonus', S.bonusQ);
     if (S.bonusQ) sfx.bonus();
     $('#q-prompt').textContent = cat.prompt;
-    $('#q-answer').textContent = '';
+    setAnswer('');
     const media = $('#q-media');
     media.innerHTML = '';
     media.className = 'q-media type-' + cat.type;
@@ -591,7 +591,7 @@
     }
     renderHud();
     if (S.effect) S.effect.finish();
-    $('#q-answer').textContent = S.item.a;
+    setAnswer(S.item.a);
     $('#card').classList.add('correct');
     broadcast();
     setTimeout(() => {
@@ -632,6 +632,15 @@
   }
 
   // عدّاد مهلة الجواب على بطاقة السؤال
+  function setAnswer(text) {
+    const el = $('#q-answer');
+    el.textContent = '';
+    if (!text) return;
+    const sp = document.createElement('span');
+    sp.textContent = text;
+    el.appendChild(sp);
+  }
+
   function updateQTimer() {
     const el = $('#q-timer');
     const on = !!S.settings.limit;
