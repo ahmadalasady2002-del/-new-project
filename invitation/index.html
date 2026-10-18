@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>دعوة زفاف</title>
+<title>دعوة خطوبة</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Aref+Ruqaa:wght@400;700&family=Amiri:wght@400;700&family=Noto+Kufi+Arabic:wght@300;400;600&display=swap" rel="stylesheet">
@@ -34,7 +34,8 @@ body.locked{overflow:hidden;height:100vh}
 .orn i{flex:1;height:1px;background:linear-gradient(90deg,transparent,var(--gold),transparent)}
 .orn b{width:7px;height:7px;transform:rotate(45deg);background:var(--gold)}
 .intro-names{font-family:"Aref Ruqaa",serif;font-size:58px;line-height:1.25;color:#fff;text-shadow:0 0 30px rgba(230,200,143,.35);opacity:0;animation:up 1.2s .9s forwards}
-.intro-names .amp{color:var(--gold-2);font-size:40px;display:block}
+.intro-host{white-space:pre-line;font-family:"Amiri",serif;font-size:17px;line-height:1.9;color:#e9d9c6;margin-bottom:6px;opacity:0;animation:up 1s .8s forwards}
+.intro-names{font-size:72px}
 .intro-to{margin-top:18px;font-size:14px;color:#d9c6b4;opacity:0;animation:up 1s 1.3s forwards}
 .intro-to strong{color:var(--gold-2);font-weight:600}
 .btn-open{margin-top:34px;background:transparent;border:1px solid var(--gold);color:var(--gold-2);font:inherit;font-size:15px;padding:12px 38px;cursor:pointer;letter-spacing:1px;position:relative;overflow:hidden;opacity:0;animation:up 1s 1.6s forwards,glow 2.4s 2.6s infinite}
@@ -64,7 +65,8 @@ body.locked{overflow:hidden;height:100vh}
 /* ============ الهيرو ============ */
 .hero{position:relative;min-height:100svh;background:linear-gradient(180deg,#2a1d20 0%,#5b4045 55%,#c79ea2 100%);color:#fff;text-align:center;display:flex;flex-direction:column;justify-content:center;align-items:center;padding:70px 24px 150px;overflow:hidden}
 .hero::before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 50% 75%,rgba(255,215,170,.55),transparent 45%),radial-gradient(circle at 20% 20%,rgba(255,200,160,.12),transparent 30%);pointer-events:none}
-.hero .names{font-family:"Aref Ruqaa",serif;font-size:64px;line-height:1.15;position:relative}
+.hero .names{font-family:"Aref Ruqaa",serif;font-size:84px;line-height:1.15;position:relative}
+.hero-kicker{font-family:"Amiri",serif;font-size:22px;color:var(--gold-2);position:relative;margin-bottom:6px}
 .hero .names .sep{display:flex;align-items:center;gap:10px;justify-content:center;margin:6px auto;width:160px}
 .hero .names .sep i{flex:1;height:1px;background:rgba(255,255,255,.6)}
 .hero .names .sep b{color:var(--gold-2);font-size:22px;font-family:"Amiri",serif}
@@ -174,7 +176,8 @@ footer .calli{font-size:26px;color:var(--ink);display:block;margin-bottom:4px}
   <div class="intro-inner">
     <div class="intro-kicker" data-t="introKicker"></div>
     <div class="orn"><i></i><b></b><i></i></div>
-    <div class="intro-names"><span data-t="groom"></span><span class="amp">&amp;</span><span data-t="bride"></span></div>
+    <div class="intro-host" data-t="introHost"></div>
+    <div class="intro-names"><span data-t="honoree"></span></div>
     <div class="intro-to" id="introTo" hidden>إلى الغالي/ة: <strong id="guestName"></strong></div>
     <button class="btn-open" id="openBtn" data-t="openBtn"></button>
   </div>
@@ -193,10 +196,11 @@ footer .calli{font-size:26px;color:var(--ink);display:block;margin-bottom:4px}
 
 <!-- الهيرو -->
 <header class="hero">
+  <div class="hero-kicker" data-t="eventTitle"></div>
   <div class="names">
-    <div data-t="groom"></div>
-    <div class="sep"><i></i><b>&amp;</b><i></i></div>
-    <div data-t="bride"></div>
+    <div class="sep"><i></i><b>✦</b><i></i></div>
+    <div data-t="honoree"></div>
+    <div class="sep"><i></i><b>✦</b><i></i></div>
   </div>
   <div class="date" id="heroDate"></div>
   <div class="venue" data-t="venueName"></div>
@@ -221,11 +225,9 @@ footer .calli{font-size:26px;color:var(--ink);display:block;margin-bottom:4px}
   <!-- العائلتين -->
   <section class="reveal">
     <div class="card">
-      <div class="label">أهل العريس</div>
-      <div class="family" data-t="groomFamily"></div>
-      <div class="dot"></div>
-      <div class="label">أهل العروس</div>
-      <div class="family" data-t="brideFamily"></div>
+      <div class="label">الداعي</div>
+      <div class="family" data-t="host"></div>
+      <div class="sub" data-t="hostNote"></div>
     </div>
   </section>
 
@@ -304,8 +306,8 @@ footer .calli{font-size:26px;color:var(--ink);display:block;margin-bottom:4px}
           </div>
         </div>
         <div class="field">
-          <label for="fMsg">♥ كلمة للعروسين</label>
-          <textarea id="fMsg" placeholder="اكتب تهنئتك للعروسين..."></textarea>
+          <label for="fMsg">♥ كلمة تهنئة</label>
+          <textarea id="fMsg" placeholder="اكتب تهنئتك..."></textarea>
         </div>
         <button class="btn solid" id="sendBtn">إرسال التأكيد</button>
       </form>
@@ -342,9 +344,12 @@ footer .calli{font-size:26px;color:var(--ink);display:block;margin-bottom:4px}
    ✏️  كل شي بالدعوة يتعدل من هنا فقط
    ===================================================== */
 const CONFIG = {
-  groom: "آدم",
-  bride: "ميرا",
-  introKicker: "دعوة زفاف",
+  host: "صباح عريبي",
+  hostNote: "وعائلته الكريمة",
+  honoree: "أحمد",
+  eventTitle: "حفل خطوبة",
+  introKicker: "دعوة حفل خطوبة",
+  introHost: "يتشرّف السيد صباح عريبي\nبدعوتكم لحضور حفل خطوبة نجله",
   openBtn: "افتح الدعوة",
 
   // التاريخ والوقت (بتوقيت بغداد +03:00)
@@ -352,10 +357,8 @@ const CONFIG = {
   durationHours: 5,
 
   verse: "﴿ وَمِنْ آيَاتِهِ أَنْ خَلَقَ لَكُم مِّنْ أَنفُسِكُمْ أَزْوَاجًا لِّتَسْكُنُوا إِلَيْهَا ﴾",
-  message: "بقلوبٍ مفعمةٍ بالفرح والسرور، نتشرّف بدعوتكم لمشاركتنا أجمل لحظات حياتنا في حفل زفافنا، فحضوركم شرفٌ لنا وبهجةٌ تكتمل بها فرحتنا.",
+  message: "يتشرّف السيد صباح عريبي وعائلته بدعوتكم لحضور حفل خطوبة نجله أحمد، ومشاركتنا فرحتنا، فحضوركم شرفٌ لنا وبهجةٌ تكتمل بها فرحتنا.",
 
-  groomFamily: "نجل السيد كريم عبد الله والسيدة هدى",
-  brideFamily: "كريمة السيد سامي حسن والسيدة نور",
 
   venueName: "قاعة الزهور",
   venueAddress: "بغداد – المنصور",
@@ -364,14 +367,14 @@ const CONFIG = {
 
   program: [
     { time: "7:00 م", title: "استقبال الضيوف" },
-    { time: "8:00 م", title: "زفة العروسين" },
-    { time: "9:00 م", title: "العشاء" },
-    { time: "10:30 م", title: "قطع الكيك" },
+    { time: "8:00 م", title: "قراءة الفاتحة" },
+    { time: "8:30 م", title: "تلبيس المحابس" },
+    { time: "9:30 م", title: "العشاء" },
   ],
 
   rsvpDeadline: "يرجى التأكيد قبل 15 تشرين الأول",
-  footer: "آدم & ميرا",
-  hashtag: "#آدم_وميرا",
+  footer: "خطوبة أحمد",
+  hashtag: "#خطوبة_أحمد",
 
   // رابط الأغنية (mp3) — اتركه فارغ حتى يختفي زر الموسيقى
   musicUrl: "",
@@ -400,7 +403,7 @@ $("#mapBtn").href = CONFIG.mapsUrl;
 if (CONFIG.mapEmbed) $("#mapBox").innerHTML = `<iframe loading="lazy" src="${CONFIG.mapEmbed}"></iframe>`; else $("#mapBox").remove();
 $("#program").innerHTML = CONFIG.program.map(p => `<li><span>${p.title}</span><time>${p.time}</time></li>`).join("");
 if (!CONFIG.program.length) $("#programSec").remove();
-document.title = `دعوة زفاف ${CONFIG.groom} & ${CONFIG.bride}`;
+document.title = `دعوة ${CONFIG.eventTitle} ${CONFIG.honoree}`;
 if (guest) { $("#guestName").textContent = guest; $("#introTo").hidden = false; $("#fName").value = guest; }
 
 // جزيئات الإضاءة والبتلات
@@ -449,7 +452,7 @@ tick(); setInterval(tick, 1000);
 // التقويم
 const end = new Date(when.getTime() + CONFIG.durationHours * 3600e3);
 const z = d => d.toISOString().replace(/[-:]|\.\d{3}/g, "");
-const evTitle = `زفاف ${CONFIG.groom} & ${CONFIG.bride}`;
+const evTitle = `${CONFIG.eventTitle} ${CONFIG.honoree}`;
 $("#gcal").href = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(evTitle)}&dates=${z(when)}/${z(end)}&location=${encodeURIComponent(CONFIG.venueName + " - " + CONFIG.venueAddress)}`;
 $("#ical").addEventListener("click", () => {
   const ics = ["BEGIN:VCALENDAR", "VERSION:2.0", "BEGIN:VEVENT", `DTSTART:${z(when)}`, `DTEND:${z(end)}`, `SUMMARY:${evTitle}`, `LOCATION:${CONFIG.venueName} - ${CONFIG.venueAddress}`, "END:VEVENT", "END:VCALENDAR"].join("\r\n");
@@ -503,7 +506,7 @@ async function loadWishes() {
   const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   $("#wishes").innerHTML = list.length
     ? list.map(w => `<li><span class="av">${esc(w.name.charAt(0))}</span><div><b>${esc(w.name)}</b><p>${esc(w.message)}</p></div></li>`).join("")
-    : `<li class="empty">كن أول من يهنّئ العروسين ♥</li>`;
+    : `<li class="empty">كن أول المهنّئين ♥</li>`;
 }
 loadWishes();
 </script>
