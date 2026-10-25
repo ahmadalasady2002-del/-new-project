@@ -19,11 +19,11 @@ const ResultsPanel = forwardRef(function ResultsPanel({ result, karat, onCopy, s
       <div className="relative overflow-hidden bg-ink-900 px-6 pb-7 pt-6 text-ivory-100 dark:bg-black/40">
         <div
           aria-hidden
-          className="pointer-events-none absolute -end-16 -top-20 size-56 rounded-full bg-gold-500/25 blur-3xl"
+          className="pointer-events-none absolute -end-24 -top-28 size-72 rounded-full bg-[radial-gradient(circle,rgba(184,145,58,0.35),transparent_65%)]"
         />
         <div
           aria-hidden
-          className="pointer-events-none absolute -bottom-24 -start-10 size-48 rounded-full bg-gold-300/10 blur-3xl"
+          className="pointer-events-none absolute -bottom-28 -start-16 size-64 rounded-full bg-[radial-gradient(circle,rgba(226,196,122,0.14),transparent_65%)]"
         />
         <div className="relative flex items-center justify-between">
           <span className="text-sm text-ivory-300">السعر النهائي</span>
@@ -35,7 +35,7 @@ const ResultsPanel = forwardRef(function ResultsPanel({ result, karat, onCopy, s
         <div className="relative mt-4 flex items-baseline gap-2">
           <span
             className={`num font-display text-[2.6rem] font-extrabold leading-none tracking-tight sm:text-5xl ${
-              result.ready ? 'gold-text animate-shimmer' : 'text-ink-500'
+              result.ready ? 'gold-text' : 'text-ink-500'
             }`}
           >
             {result.ready ? formatIQD(animatedFinal) : '0'}

@@ -60,7 +60,7 @@ function StepBadge({ index, done, active }) {
       }`}
     >
       {done ? <Check className="size-5" strokeWidth={2.5} /> : <span className="num">{index}</span>}
-      {active && !done && <span className="absolute inset-0 animate-ping rounded-full border border-gold-400/60" />}
+      {active && !done && <span className="absolute -inset-1 rounded-full border border-gold-300/70 dark:border-gold-600/50" />}
     </div>
   );
 }

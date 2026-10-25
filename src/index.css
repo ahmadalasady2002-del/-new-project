@@ -31,20 +31,15 @@
 
   --animate-value-pop: value-pop 420ms cubic-bezier(0.2, 0.8, 0.2, 1);
   --animate-fade-up: fade-up 600ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
-  --animate-shimmer: shimmer 6s linear infinite;
   --animate-toast: toast 2.4s ease both;
 
   @keyframes value-pop {
-    0% { opacity: 0.25; transform: translateY(6px); filter: blur(2px); }
-    100% { opacity: 1; transform: translateY(0); filter: blur(0); }
+    0% { opacity: 0.3; transform: translateY(5px); }
+    100% { opacity: 1; transform: translateY(0); }
   }
   @keyframes fade-up {
     0% { opacity: 0; transform: translateY(14px); }
     100% { opacity: 1; transform: translateY(0); }
-  }
-  @keyframes shimmer {
-    0% { background-position: 200% center; }
-    100% { background-position: -200% center; }
   }
   @keyframes toast {
     0% { opacity: 0; transform: translate(-50%, 12px); }
@@ -56,6 +51,7 @@
 @layer base {
   html {
     color-scheme: light;
+    touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
   }
   html.dark {
@@ -81,8 +77,8 @@
 
 @layer components {
   .card {
-    @apply rounded-3xl border border-gold-200/60 bg-white/80 shadow-[0_1px_0_rgba(255,255,255,0.8)_inset,0_18px_40px_-24px_rgba(122,92,34,0.35)] backdrop-blur-sm
-      dark:border-gold-700/30 dark:bg-ink-900/80 dark:shadow-[0_18px_40px_-24px_rgba(0,0,0,0.8)];
+    @apply rounded-3xl border border-gold-200/60 bg-white shadow-[0_1px_0_rgba(255,255,255,0.8)_inset,0_18px_40px_-24px_rgba(122,92,34,0.35)]
+      dark:border-gold-700/30 dark:bg-ink-900 dark:shadow-[0_18px_40px_-24px_rgba(0,0,0,0.8)];
   }
   .gold-text {
     background: linear-gradient(100deg, #8c6a24 0%, #c29b45 30%, #e9cf8b 50%, #c29b45 70%, #8c6a24 100%);

@@ -12,7 +12,7 @@ export default function MobileTotalBar({ visible, result, onClick }) {
       <button
         type="button"
         onClick={onClick}
-        className="flex w-full items-center justify-between gap-3 rounded-2xl border border-gold-500/30 bg-ink-900/95 px-5 py-3.5 text-start text-ivory-100 shadow-[0_20px_40px_-12px_rgba(0,0,0,0.5)] backdrop-blur"
+        className="flex w-full items-center justify-between gap-3 rounded-2xl border border-gold-500/30 bg-ink-900 px-5 py-3.5 text-start text-ivory-100 shadow-[0_20px_40px_-12px_rgba(0,0,0,0.5)]"
       >
         <span className="flex flex-col">
           <span className="text-[11px] text-ivory-300">السعر النهائي</span>

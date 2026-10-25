@@ -1,4 +1,4 @@
-import { useId } from 'react';
+import { useId, useLayoutEffect, useRef } from 'react';
 import { formatRawInput, sanitizeNumber } from '../lib/gold.js';
 
 /**
@@ -21,10 +21,28 @@ export default function NumberField({
 }) {
   const id = useId();
   const hintId = `${id}-hint`;
+  const inputRef = useRef(null);
+  // Number of digits/dots left of the caret, so it can be restored after commas are re-inserted.
+  const caretRef = useRef(null);
+  const display = formatRawInput(value);
 
   const handleChange = (e) => {
-    onChange(sanitizeNumber(e.target.value, { decimals }));
+    const { value: typed, selectionStart } = e.target;
+    caretRef.current = selectionStart == null ? null : countSignificant(typed.slice(0, selectionStart));
+    onChange(sanitizeNumber(typed, { decimals }));
   };
+
+  useLayoutEffect(() => {
+    const el = inputRef.current;
+    const wanted = caretRef.current;
+    caretRef.current = null;
+    if (wanted == null || !el || document.activeElement !== el) return;
+    let pos = 0;
+    for (let seen = 0; pos < display.length && seen < wanted; pos++) {
+      if (/[\d.]/.test(display[pos])) seen++;
+    }
+    el.setSelectionRange(pos, pos);
+  }, [display]);
 
   // Block keys that could never form a valid positive number.
   const handleKeyDown = (e) => {
@@ -39,13 +57,14 @@ export default function NumberField({
       <div className={`field ${error ? '!border-red-400 !ring-red-200/50 dark:!border-red-500/70' : ''}`}>
         {Icon && <Icon aria-hidden className="size-5 shrink-0 text-gold-500" strokeWidth={1.75} />}
         <input
+          ref={inputRef}
           id={id}
           type="text"
           inputMode={decimals > 0 ? 'decimal' : 'numeric'}
           autoComplete="off"
           enterKeyHint="next"
           dir="ltr"
-          value={formatRawInput(value)}
+          value={display}
           onChange={handleChange}
           onKeyDown={handleKeyDown}
           onFocus={onFocus}
@@ -72,4 +91,8 @@ export default function NumberField({
       )}
     </div>
   );
+}
+
+function countSignificant(text) {
+  return (text.match(/[\d.٠-٩۰-۹٫]/g) || []).length;
 }

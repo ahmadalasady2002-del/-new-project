@@ -191,7 +191,7 @@ export default function App() {
             <Sparkles className="size-3.5" />
             بالدينار العراقي
           </span>
-          <h1 className="gold-text animate-shimmer mt-4 font-display text-5xl font-extrabold leading-tight sm:text-6xl">
+          <h1 className="gold-text mt-4 font-display text-5xl font-extrabold leading-tight sm:text-6xl">
             حاسبة الذهب
           </h1>
           <p className="mx-auto mt-3 max-w-md text-base leading-relaxed text-ink-500 dark:text-ink-300 sm:text-lg">
@@ -418,25 +418,11 @@ function Disclaimer() {
 }
 
 function Backdrop() {
+  // Static, absolutely positioned (scrolls with the page) and filter-free so it stays cheap on phones.
   return (
-    <div aria-hidden className="pointer-events-none fixed inset-0 -z-0 overflow-hidden">
-      <div className="absolute -top-40 left-1/2 h-[480px] w-[900px] -translate-x-1/2 rounded-full bg-gold-200/40 blur-[120px] dark:bg-gold-700/15" />
-      <div className="absolute bottom-0 end-0 h-80 w-80 rounded-full bg-gold-100/60 blur-[100px] dark:bg-gold-800/10" />
-      <svg className="absolute inset-0 h-full w-full opacity-[0.35] dark:opacity-[0.12]" xmlns="http://www.w3.org/2000/svg">
-        <defs>
-          <pattern id="lattice" width="44" height="44" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-            <path d="M0 22h44M22 0v44" stroke="#D1AB58" strokeWidth="0.4" strokeOpacity="0.5" fill="none" />
-          </pattern>
-          <radialGradient id="fade" cx="50%" cy="0%" r="80%">
-            <stop offset="0" stopColor="white" stopOpacity="1" />
-            <stop offset="1" stopColor="white" stopOpacity="0" />
-          </radialGradient>
-          <mask id="m">
-            <rect width="100%" height="100%" fill="url(#fade)" />
-          </mask>
-        </defs>
-        <rect width="100%" height="100%" fill="url(#lattice)" mask="url(#m)" />
-      </svg>
+    <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-[720px] overflow-hidden">
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_70%_60%_at_50%_0%,rgba(226,196,122,0.35),transparent_70%)] dark:bg-[radial-gradient(ellipse_70%_60%_at_50%_0%,rgba(122,92,34,0.28),transparent_70%)]" />
+      <div className="absolute inset-0 bg-[repeating-linear-gradient(45deg,rgba(209,171,88,0.12)_0_1px,transparent_1px_32px),repeating-linear-gradient(-45deg,rgba(209,171,88,0.12)_0_1px,transparent_1px_32px)] [mask-image:radial-gradient(ellipse_60%_70%_at_50%_0%,#000,transparent)] dark:opacity-50" />
     </div>
   );
 }
