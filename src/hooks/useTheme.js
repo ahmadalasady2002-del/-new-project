@@ -9,6 +9,9 @@ function getInitialTheme() {
   } catch {
     /* ignore */
   }
+  // Respect a theme chosen by the host page (e.g. when embedded).
+  const host = document.documentElement.getAttribute('data-theme');
+  if (host === 'dark' || host === 'light') return host;
   return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 }
 

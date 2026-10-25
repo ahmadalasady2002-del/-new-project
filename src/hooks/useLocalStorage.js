@@ -1,13 +1,16 @@
 import { useEffect, useState } from 'react';
 
-/** useState that persists to localStorage. Storage failures (private mode etc.) are ignored. */
-export function useLocalStorage(key, initialValue) {
+/**
+ * useState that persists to localStorage. Storage failures (private mode etc.) are ignored.
+ * `firstVisitValue` is used instead of `initialValue` when nothing has been stored yet.
+ */
+export function useLocalStorage(key, initialValue, firstVisitValue = initialValue) {
   const [value, setValue] = useState(() => {
     try {
       const stored = localStorage.getItem(key);
-      return stored != null ? { ...initialValue, ...JSON.parse(stored) } : initialValue;
+      return stored != null ? { ...initialValue, ...JSON.parse(stored) } : firstVisitValue;
     } catch {
-      return initialValue;
+      return firstVisitValue;
     }
   });
 

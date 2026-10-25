@@ -3,7 +3,7 @@ import { Coins, Copy, Gem, Hammer, MessageCircle, RotateCcw, Scale } from 'lucid
 import { formatIQD } from '../lib/gold.js';
 import { useAnimatedNumber } from '../hooks/useAnimatedNumber.js';
 
-const ResultsPanel = forwardRef(function ResultsPanel({ result, karat, onCopy, onShare, onReset }, ref) {
+const ResultsPanel = forwardRef(function ResultsPanel({ result, karat, onCopy, shareUrl, onReset }, ref) {
   const animatedFinal = useAnimatedNumber(result.ready ? result.finalPrice : 0);
   const show = (v) => (result.ready ? formatIQD(v) : '—');
 
@@ -78,10 +78,16 @@ const ResultsPanel = forwardRef(function ResultsPanel({ result, karat, onCopy, o
 
       {/* Actions */}
       <div className="grid grid-cols-2 gap-2 border-t border-ivory-200 p-4 dark:border-ink-800">
-        <button type="button" onClick={onShare} disabled={!result.ready} className="btn col-span-2 bg-[#1f8f4e] text-white hover:bg-[#1a7a43]">
+        <a
+          href={result.ready ? shareUrl : undefined}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-disabled={!result.ready}
+          className={`btn col-span-2 bg-[#1f8f4e] text-white hover:bg-[#1a7a43] ${result.ready ? '' : 'pointer-events-none opacity-40'}`}
+        >
           <MessageCircle className="size-4.5" />
           مشاركة عبر واتساب
-        </button>
+        </a>
         <button
           type="button"
           onClick={onCopy}

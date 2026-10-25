@@ -49,7 +49,7 @@ const EXAMPLE = {
 
 export default function App() {
   const { theme, toggle } = useTheme();
-  const [inputs, setInputs] = useLocalStorage('gold-calc:inputs', DEFAULTS);
+  const [inputs, setInputs] = useLocalStorage('gold-calc:inputs', DEFAULTS, EXAMPLE);
   const [focusedStep, setFocusedStep] = useState(null);
   const [toast, setToast] = useState(null);
   const [resultsVisible, setResultsVisible] = useState(true);
@@ -134,9 +134,7 @@ export default function App() {
     showToast('تم نسخ نتيجة الحساب');
   };
 
-  const handleShare = () => {
-    window.open(`https://wa.me/?text=${encodeURIComponent(summaryText())}`, '_blank', 'noopener,noreferrer');
-  };
+  const shareUrl = `https://wa.me/?text=${encodeURIComponent(summaryText())}`;
 
   const handleReset = () => {
     setInputs(DEFAULTS);
@@ -155,6 +153,8 @@ export default function App() {
     onFocus: () => setFocusedStep(step),
     onBlur: () => setFocusedStep(null),
   });
+
+  const isExample = Object.keys(EXAMPLE).every((k) => inputs[k] === EXAMPLE[k]);
 
   const fmt = (v, ok) => (ok ? formatIQD(v) : '—');
   const karatInfo = KARATS.find((k) => k.value === inputs.karat) ?? KARATS[2];
@@ -204,14 +204,21 @@ export default function App() {
             <Chip icon={Zap}>حساب تلقائي فوري</Chip>
             <Chip icon={Info}>أسعار تُدخلها أنت</Chip>
           </div>
-          <button
-            type="button"
-            onClick={handleExample}
-            className="mt-5 inline-flex items-center gap-1.5 text-sm font-semibold text-gold-700 underline-offset-4 hover:underline dark:text-gold-300"
-          >
-            <Wand2 className="size-4" />
-            جرّب مثالاً جاهزاً
-          </button>
+          {isExample ? (
+            <p className="mt-5 inline-flex items-center gap-1.5 rounded-full bg-gold-100/80 px-3.5 py-1.5 text-sm font-medium text-gold-800 dark:bg-gold-700/20 dark:text-gold-200">
+              <Wand2 className="size-4" />
+              هذه قيم تجريبية، غيّرها بأسعارك
+            </p>
+          ) : (
+            <button
+              type="button"
+              onClick={handleExample}
+              className="mt-5 inline-flex items-center gap-1.5 text-sm font-semibold text-gold-700 underline-offset-4 hover:underline dark:text-gold-300"
+            >
+              <Wand2 className="size-4" />
+              جرّب مثالاً جاهزاً
+            </button>
+          )}
         </section>
 
         <main className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_400px] lg:items-start lg:gap-8">
@@ -354,7 +361,7 @@ export default function App() {
               result={result}
               karat={inputs.karat}
               onCopy={handleCopy}
-              onShare={handleShare}
+              shareUrl={shareUrl}
               onReset={handleReset}
             />
             <Disclaimer />

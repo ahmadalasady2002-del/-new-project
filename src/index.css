@@ -55,7 +55,13 @@
 
 @layer base {
   html {
+    color-scheme: light;
     -webkit-tap-highlight-color: transparent;
+  }
+  html.dark {
+    color-scheme: dark;
+  }
+  html {
     text-rendering: optimizeLegibility;
   }
   body {
