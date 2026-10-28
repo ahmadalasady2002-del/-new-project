@@ -13,7 +13,7 @@ import time
 from datetime import datetime, timezone
 
 from . import config, data, strategy
-from .broker import BinanceBroker, PaperBroker
+from .broker import BybitBroker, PaperBroker
 
 log = logging.getLogger("bot")
 
@@ -46,7 +46,7 @@ def make_broker(state):
             f"Rename or delete it before switching to {mode}."
         )
     if config.LIVE_TRADING:
-        broker = BinanceBroker(config.API_KEY, config.API_SECRET)
+        broker = BybitBroker(config.API_KEY, config.API_SECRET)
         broker.check_permissions()
         return broker
     return PaperBroker(state)

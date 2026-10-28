@@ -28,9 +28,9 @@ def _i(name, default):
 
 
 # --- connection ---
-BINANCE_BASE = os.getenv("BINANCE_BASE", "https://api.binance.com")
-API_KEY = os.getenv("BINANCE_API_KEY", "")
-API_SECRET = os.getenv("BINANCE_API_SECRET", "")
+BYBIT_BASE = os.getenv("BYBIT_BASE", "https://api.bybit.com")
+API_KEY = os.getenv("BYBIT_API_KEY", "")
+API_SECRET = os.getenv("BYBIT_API_SECRET", "")
 # Real money only when this is exactly "yes" and keys exist.
 LIVE_TRADING = os.getenv("LIVE_TRADING", "no").lower() == "yes"
 
@@ -67,4 +67,5 @@ LOG_FILE = ROOT / os.getenv("LOG_FILE", "bot.log")
 STABLECOINS = {
     "USDC", "FDUSD", "TUSD", "BUSD", "DAI", "USDP", "EUR", "AEUR", "USDE",
     "PYUSD", "USD1", "XUSD", "BFUSD", "RLUSD", "EURI", "PAXG", "WBTC", "WBETH",
+    "USDQ", "USDR", "XAUT", "STETH", "METH", "CMETH",
 }
