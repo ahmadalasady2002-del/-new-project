@@ -515,8 +515,12 @@ class AnnounceTests(unittest.TestCase):
         state = {"mode": "paper", "positions": {}, "trades": [], "cooldown": {}, "cash": 100.0}
         w = announce.Watcher(state, PaperBroker(state), threading.Lock())
         self.sent = []
-        for target, kw in ((announce.data, {"get_json": lambda url, *a, **k: pages["binance" if "binance" in url
-                                                                                 else "upbit"]}),
+        pages.setdefault("upbit_markets", [{"market": "KRW-BTC"}, {"market": "BTC-ETH"}])
+
+        def page(url, *a, **k):
+            return pages["binance" if "binance" in url else "upbit_markets" if "api.upbit.com" in url else "upbit"]
+
+        for target, kw in ((announce.data, {"get_json": page}),
                            (announce.notify, {"send": self.sent.append}),
                            (main.notify, {"send": self.sent.append})):
             for name, fn in kw.items():
@@ -552,7 +556,7 @@ class AnnounceTests(unittest.TestCase):
     def test_skips_coins_not_on_bybit_or_already_pumped(self):
         pages = {"binance": {"data": {"articles": []}}, "upbit": UPBIT_PAGE}
         w, state = self.make_watcher(pages)
-        w.state["ann_seen"] = {"binance": [], "upbit": []}
+        w.state["ann_seen"] = {"binance": [], "upbit": [], "upbit_markets": []}
         pages["binance"] = {"data": {"articles": [{"id": 1, "title": "Binance Will List Foo (FOO)"}]}}
         with mock.patch.object(data, "price", side_effect=RuntimeError("not on Bybit")):
             w.tick()
@@ -563,6 +567,18 @@ class AnnounceTests(unittest.TestCase):
             w.tick()
         self.assertIn("تأخرنا", self.sent[-1])
         self.assertEqual(state["positions"], {})
+
+    def test_new_upbit_krw_market_triggers_buy(self):
+        pages = {"binance": BINANCE_PAGE, "upbit": UPBIT_PAGE}
+        w, state = self.make_watcher(pages)
+        with mock.patch.object(data, "price", return_value=2.0), \
+             mock.patch.object(data, "klines", return_value=[{"open": 2.0}]):
+            w.tick()
+            pages["upbit_markets"] = pages["upbit_markets"] + [{"market": "KRW-NEWC"}, {"market": "BTC-OTHER"}]
+            w.tick()
+        self.assertEqual(list(state["positions"]), ["NEWCUSDT"])
+        self.assertIn("أسواق Upbit", self.sent[-1])
+        self.assertIn("آخر خبر قريته: Binance Will List Lombard", w.report())
 
     def test_broken_source_warns_once(self):
         pages = {"binance": {"weird": True}, "upbit": UPBIT_PAGE}

@@ -20,13 +20,17 @@ log = logging.getLogger("bot")
 
 SOURCES = {
     "binance": ("https://www.binance.com/bapi/composite/v1/public/cms/article/list/query",
-                {"type": 1, "catalogId": 48, "pageNo": 1, "pageSize": 10}),
+                {"type": 1, "catalogId": 48, "pageNo": 1, "pageSize": 20}),
     "upbit": ("https://api-manager.upbit.com/api/v1/announcements",
               {"os": "web", "page": 1, "per_page": 20, "category": "trade"}),
+    # Official public API: a new KRW market appearing means Upbit just listed the coin.
+    # Slower than the announcement, but works from anywhere.
+    "upbit_markets": ("https://api.upbit.com/v1/market/all", {"isDetails": "false"}),
 }
 BROWSER = {"User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15",
            "Accept": "application/json", "clienttype": "web"}
-SOURCE_AR = {"binance": "Binance", "upbit": "Upbit الكورية"}
+UPBIT_SITE = {"Origin": "https://upbit.com", "Referer": "https://upbit.com/"}
+SOURCE_AR = {"binance": "Binance", "upbit": "إعلانات Upbit", "upbit_markets": "أسواق Upbit"}
 TICKER = re.compile(r"\(([A-Z0-9]{2,15})\)")
 NOT_COINS = {"KRW", "BTC", "USDT", "USD", "ETH"}
 
@@ -45,6 +49,8 @@ def find_articles(obj):
 
 def listing_coins(source, title):
     """Coins a spot-listing headline announces, or [] if it isn't one."""
+    if source == "upbit_markets":
+        return [title[4:]] if title.startswith("KRW-") else []
     if source == "binance":
         t = title.lower()
         if "will list" not in t or "alpha" in t or "futures" in t:
@@ -56,7 +62,10 @@ def listing_coins(source, title):
 
 def fetch(source):
     url, params = SOURCES[source]
-    payload = data.get_json(url, params, headers=BROWSER, tries=1, timeout=8)
+    headers = {**BROWSER, **(UPBIT_SITE if source == "upbit" else {})}
+    payload = data.get_json(url, params, headers=headers, tries=1, timeout=8)
+    if source == "upbit_markets":
+        return [(f"{source}:{m['market']}", m["market"]) for m in payload if isinstance(m, dict) and "market" in m]
     return [(f"{source}:{a.get('id') or a.get('code')}", a["title"]) for a in find_articles(payload)]
 
 
@@ -78,6 +87,7 @@ class Watcher:
         self.state, self.broker, self.lock = state, broker, lock
         self.health = {s: {"ok": None, "checked": 0, "error": ""} for s in SOURCES}
         self.recent = []  # last listing headlines seen, newest first, for /news
+        self.last_title = {}  # newest headline read from each source, to show parsing works
         self.warned = set()
 
     def run(self):
@@ -105,6 +115,8 @@ class Watcher:
                                 f"أكمل أحاول، واكتب /news حتى تشوف الحالة")
                 continue
             self.warned.discard(source)
+            if source != "upbit_markets":
+                self.last_title[source] = articles[0][1]
             first_time = source not in seen
             known = set(seen.get(source, []))
             for aid, title in articles:
@@ -182,6 +194,8 @@ class Watcher:
             else:
                 state = f"❌ ما يشتغل: {h['error']}"
             lines.append(f"{SOURCE_AR[source]}: {state}")
+            if source in self.last_title:
+                lines.append(f"   آخر خبر قريته: {self.last_title[source][:90]}")
         lines.append("")
         if self.recent:
             lines.append("آخر إعلانات إدراج شفتها:")
