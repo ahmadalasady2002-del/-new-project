@@ -20,6 +20,7 @@ HELP = """🤖 أوامر البوت
 ▶️ كمّل الشراء: يرجع يشتري
 🧪 اختبار: يجرب الوضع الحالي على أسعار آخر 30 يوم
 🎟 اختبار اليانصيب: يجرب اليانصيب على آخر 120 يوم
+📢 الإعلانات: هل مراقب إعلانات Binance وUpbit شغال، وآخر إدراجات شافها
 
 أوامر تكتبها:
 /mode lotto أو /mode meme أو /mode safe: يغيّر الوضع
@@ -29,13 +30,13 @@ HELP = """🤖 أوامر البوت
 BUTTONS = {
     "📊 الحالة": "/status", "📜 الصفقات": "/trades", "⏸ وگف الشراء": "/pause",
     "▶️ كمّل الشراء": "/resume", "🧪 اختبار": "/test", "🎟 اختبار اليانصيب": "/test lotto",
-    "❓ مساعدة": "/help",
+    "📢 الإعلانات": "/news", "❓ مساعدة": "/help",
 }
 
 
 class Commands:
-    def __init__(self, state, broker, lock):
-        self.state, self.broker, self.lock = state, broker, lock
+    def __init__(self, state, broker, lock, watcher=None):
+        self.state, self.broker, self.lock, self.watcher = state, broker, lock, watcher
         self.test_proc = None
         self.confirm_sellall_until = 0
 
@@ -73,7 +74,7 @@ class Commands:
         handler = {
             "/status": self.status, "/trades": self.trades, "/pause": self.pause, "/resume": self.resume,
             "/test": self.test, "/mode": self.mode, "/sellall": self.sellall, "/help": lambda _: HELP,
-            "/start": lambda _: HELP,
+            "/start": lambda _: HELP, "/news": self.news,
         }.get(cmd)
         if not handler:
             handler = self.guess(text)
@@ -97,12 +98,18 @@ class Commands:
         words = {
             self.status: ("مبلغ", "رصيد", "فلوس", "حالة", "شلون", "الوضع", "ربح", "خسر", "كم"),
             self.trades: ("صفقات", "صفقة", "اشترى", "باع"),
+            self.news: ("إعلان", "اعلان", "اعلانات", "باينانس", "بايننس", "binance", "upbit", "ابيت"),
             (lambda _: HELP): ("مساعدة", "اوامر", "أوامر", "شتسوي", "شنو تگدر"),
         }
         for handler, keys in words.items():
             if any(k in text for k in keys):
                 return handler
         return None
+
+    def news(self, _):
+        if not self.watcher:
+            return "📢 مراقب الإعلانات مطفي"
+        return self.watcher.report()
 
     def status(self, _):
         px = {t["symbol"]: float(t["lastPrice"]) for t in data.tickers_24h()}

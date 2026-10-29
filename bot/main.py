@@ -75,6 +75,8 @@ def close_position(state, broker, symbol, price, why):
     hours = (time.time() - pos["opened"]) / 3600
     if why == "manual":
         reason = "بعتها بطلبك من تلگرام"
+    elif pos.get("ann") and why in ANN_REASONS:
+        reason = ANN_REASONS[why]
     elif pos.get("lotto") and why in LOTTO_REASONS:
         reason = LOTTO_REASONS[why]
     elif why == "time":
@@ -98,6 +100,13 @@ LOTTO_REASONS = {
     "stop": f"نزلت {100 * config.LOTTO_STOP:.0f}%، فهاي التذكرة خسرت 🎟",
     "trail": f"نزلت {100 * config.LOTTO_TRAIL:.0f}% من أعلى سعر وصلته، فبعت الباقي",
     "time": f"مرت {config.MAX_HOLD_HOURS / 24:.0f} يوم وما انفجرت",
+}
+
+
+ANN_REASONS = {
+    "trail": f"قفزت وبعدين رجعت {100 * config.ANN_TRAIL:.0f}% من أعلى سعر، فبعت",
+    "stop": f"نزلت {100 * config.ANN_STOP:.0f}% بدل ما تصعد، فبعت",
+    "time": f"مرت {config.ANN_MAX_HOURS:.0f} ساعات على الخبر، فبعت",
 }
 
 
@@ -153,6 +162,8 @@ def manage_positions(state, broker, px):
         price = px.get(symbol)
         if price is None:
             continue
+        if pos.get("ann"):
+            continue  # the announcement watcher manages these every few seconds
         if pos.get("lotto"):
             manage_lotto(state, broker, symbol, price, now)
             continue
@@ -225,6 +236,11 @@ def age_text(hours):
 
 
 def buy_message(sig, cost, stop_dist):
+    if "ann" in sig.tags:
+        from .announce import SOURCE_AR
+        return (f"📢 {SOURCE_AR[sig.tags[1]]} أعلنت إنها راح تدرج {sig.symbol[:-4]}!\n"
+                f"🚀 اشتريتها فوراً على Bybit بـ {cost:.2f}$\n"
+                f"🛡 إذا نزلت {100 * stop_dist:.0f}% أبيعها، وإذا قفزت أحمي الربح وأبيع لمن ترجع")
     if "lotto" in sig.tags:
         return (f"🎟 اشتريت تذكرة يانصيب: {sig.symbol[:-4]} بـ {cost:.2f}$\n"
                 f"🆕 عملة جديدة نزلت قبل {age_text(sig.age_h)}، وهسه كسرت أعلى سعر إلها بتداول قوي\n"
@@ -391,10 +407,15 @@ def main():
     broker = make_broker(state)
     log.info("started in %s mode, strategy %s", "LIVE (real money)" if broker.live else "paper", config.STRATEGY)
     notify.send(f"✅ البوت اشتغل ({'فلوس حقيقية' if broker.live else 'فلوس وهمية'}، وضع {config.STRATEGY})")
-    lock = threading.Lock()  # the Telegram thread touches the same state
+    lock = threading.Lock()  # the Telegram and news threads touch the same state
+    watcher = None
+    if config.ANNOUNCE and not args.once:
+        from .announce import Watcher
+        watcher = Watcher(state, broker, lock)
+        threading.Thread(target=watcher.run, daemon=True).start()
     if notify.enabled() and not args.once:
         from .telegram_bot import Commands
-        threading.Thread(target=Commands(state, broker, lock).run, daemon=True).start()
+        threading.Thread(target=Commands(state, broker, lock, watcher).run, daemon=True).start()
     while True:
         with lock:
             try:

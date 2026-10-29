@@ -10,8 +10,8 @@ from . import config
 UA = {"User-Agent": "trading-bot/1.0"}
 
 # Bybit names intervals in minutes.
-BYBIT_INTERVALS = {"15m": "15", "30m": "30", "1h": "60", "2h": "120", "4h": "240", "1d": "D"}
-INTERVAL_SECONDS = {"15m": 900, "30m": 1800, "1h": 3600, "2h": 7200, "4h": 14400, "1d": 86400}
+BYBIT_INTERVALS = {"5m": "5", "15m": "15", "30m": "30", "1h": "60", "2h": "120", "4h": "240", "1d": "D"}
+INTERVAL_SECONDS = {"5m": 300, "15m": 900, "30m": 1800, "1h": 3600, "2h": 7200, "4h": 14400, "1d": 86400}
 
 
 def get_json(url, params=None, headers=None, tries=3, timeout=15):
@@ -55,6 +55,13 @@ def tickers_24h():
          "change": r.get("price24hPcnt") or "0"}
         for r in rows
     ]
+
+
+def price(symbol):
+    rows = bybit_public("/v5/market/tickers", {"category": "spot", "symbol": symbol})["list"]
+    if not rows:
+        raise RuntimeError(f"{symbol} not on Bybit")
+    return float(rows[0]["lastPrice"])
 
 
 def klines(symbol, interval=None, limit=250):

@@ -108,6 +108,17 @@ load(os.getenv("STRATEGY", "meme").lower())
 
 MIN_ORDER_USDT = _f("MIN_ORDER_USDT", 6)
 
+# --- listing news (Binance / Upbit announcements) ---
+ANNOUNCE = os.getenv("ANNOUNCE", "yes").lower() == "yes"
+ANN_POLL_SECONDS = _f("ANN_POLL_SECONDS", 15)
+ANN_POSITION_PCT = _f("ANN_POSITION_PCT", 0.20)  # share of equity per news trade
+ANN_MAX_POSITIONS = _i("ANN_MAX_POSITIONS", 3)
+ANN_MAX_JUMP = _f("ANN_MAX_JUMP", 0.30)  # skip if it already rose this much in the last hour
+ANN_STOP = _f("ANN_STOP", 0.08)
+ANN_TRAIL_START = _f("ANN_TRAIL_START", 0.05)  # once up 5%, sell on an 8% drop from the top
+ANN_TRAIL = _f("ANN_TRAIL", 0.08)
+ANN_MAX_HOURS = _f("ANN_MAX_HOURS", 6)
+
 # --- lotto ---
 LOTTO_WAIT_HOURS = _f("LOTTO_WAIT_HOURS", 24)  # let the listing-day dump play out first
 LOTTO_MAX_AGE_DAYS = _f("LOTTO_MAX_AGE_DAYS", 7)  # only coins listed within this many days

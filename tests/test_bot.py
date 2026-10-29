@@ -469,3 +469,107 @@ class RateLimitTests(unittest.TestCase):
         with mock.patch.object(data, "get_json", return_value={"retCode": 10001, "retMsg": "bad symbol"}):
             with self.assertRaises(RuntimeError):
                 data.bybit_public("/x", {})
+
+
+BINANCE_PAGE = {"code": "000000", "data": {"catalogs": [{"catalogId": 48, "articles": [
+    {"id": 101, "code": "a1", "title": "Binance Will List Lombard (BARD) with Seed Tag Applied", "releaseDate": 1},
+    {"id": 100, "code": "a0", "title": "Notice on New Trading Pairs & Trading Bots Services on Binance Spot"},
+    {"id": 99, "code": "z9", "title": "Binance Futures Will Launch USDⓈ-Margined FOOUSDT Perpetual Contract"},
+]}]}}
+UPBIT_PAGE = {"success": True, "data": {"notices": [
+    {"id": 5001, "title": "Lombard(BARD) 신규 거래지원 안내 (KRW, BTC, USDT 마켓)", "listed_at": "x"},
+    {"id": 5000, "title": "[점검] 입출금 일시 중단 안내", "listed_at": "x"},
+]}}
+
+
+class AnnounceTests(unittest.TestCase):
+    def test_parse_listing_headlines(self):
+        from bot import announce
+        self.assertEqual(announce.listing_coins("binance", "Binance Will List Lombard (BARD) with Seed Tag"), ["BARD"])
+        self.assertEqual(announce.listing_coins("binance", "Binance Will List Two Prix (2Z) and Zama (ZAMA)"),
+                         ["2Z", "ZAMA"])
+        self.assertEqual(announce.listing_coins("binance", "Binance Alpha Will List Foo (FOO)"), [])
+        self.assertEqual(announce.listing_coins("upbit", UPBIT_PAGE["data"]["notices"][0]["title"]), ["BARD"])
+        self.assertEqual(announce.listing_coins("upbit", "[점검] 입출금 (BARD)"), [])
+        titles = [t for _, t in [(a["id"], a["title"]) for a in announce.find_articles(BINANCE_PAGE)]]
+        self.assertEqual(len(titles), 3)
+
+    def test_exits(self):
+        from bot import announce
+        pos = {"entry": 1.0, "highest": 1.0, "opened": 0}
+        self.assertIsNone(announce.exits(pos, 1.03, 10))
+        self.assertIsNone(announce.exits(pos, 1.30, 10))
+        self.assertEqual(announce.exits(pos, 1.19, 10), "trail")  # 8.5% off the 1.30 top
+        self.assertEqual(announce.exits({"entry": 1.0, "highest": 1.0, "opened": 0}, 0.91, 10), "stop")
+        self.assertEqual(announce.exits({"entry": 1.0, "highest": 1.0, "opened": 0}, 1.0, 7 * 3600), "time")
+
+    def make_watcher(self, pages):
+        import tempfile
+        import threading
+        from bot import announce
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        p = mock.patch.object(config, "STATE_FILE", Path(self.tmp.name) / "state.json")
+        p.start()
+        self.addCleanup(p.stop)
+        state = {"mode": "paper", "positions": {}, "trades": [], "cooldown": {}, "cash": 100.0}
+        w = announce.Watcher(state, PaperBroker(state), threading.Lock())
+        self.sent = []
+        for target, kw in ((announce.data, {"get_json": lambda url, *a, **k: pages["binance" if "binance" in url
+                                                                                 else "upbit"]}),
+                           (announce.notify, {"send": self.sent.append}),
+                           (main.notify, {"send": self.sent.append})):
+            for name, fn in kw.items():
+                pm = mock.patch.object(target, name, side_effect=fn)
+                pm.start()
+                self.addCleanup(pm.stop)
+        return w, state
+
+    def test_first_read_is_old_news_then_new_listing_is_bought(self):
+        pages = {"binance": BINANCE_PAGE, "upbit": UPBIT_PAGE}
+        w, state = self.make_watcher(pages)
+        with mock.patch.object(data, "price", return_value=2.0), \
+             mock.patch.object(data, "klines", return_value=[{"open": 1.9}]):
+            w.tick()
+            self.assertEqual(state["positions"], {})  # old announcements never trigger a buy
+            self.assertIn("BARD", w.report())
+            pages["binance"] = {"data": {"articles": [
+                {"id": 102, "title": "Binance Will List Zama (ZAMA)"}] + BINANCE_PAGE["data"]["catalogs"][0]["articles"]}}
+            w.tick()
+        pos = state["positions"]["ZAMAUSDT"]
+        self.assertTrue(pos["ann"])
+        self.assertAlmostEqual(pos["cost"], 20.0)
+        self.assertIn("📢 Binance أعلنت", self.sent[-1])
+        # The rally and the give-back are handled by the watcher, with Arabic reasons.
+        with mock.patch.object(data, "price", return_value=2.6):
+            w.manage()
+        with mock.patch.object(data, "price", return_value=2.3):
+            w.manage()
+        self.assertEqual(state["positions"], {})
+        self.assertGreater(state["trades"][-1]["pnl"], 0)
+        self.assertIn("قفزت", self.sent[-1])
+
+    def test_skips_coins_not_on_bybit_or_already_pumped(self):
+        pages = {"binance": {"data": {"articles": []}}, "upbit": UPBIT_PAGE}
+        w, state = self.make_watcher(pages)
+        w.state["ann_seen"] = {"binance": [], "upbit": []}
+        pages["binance"] = {"data": {"articles": [{"id": 1, "title": "Binance Will List Foo (FOO)"}]}}
+        with mock.patch.object(data, "price", side_effect=RuntimeError("not on Bybit")):
+            w.tick()
+        self.assertIn("مو موجودة على Bybit", self.sent[-1])
+        pages["binance"] = {"data": {"articles": [{"id": 2, "title": "Binance Will List Bar (BAR)"}]}}
+        with mock.patch.object(data, "price", return_value=1.5), \
+             mock.patch.object(data, "klines", return_value=[{"open": 1.0}]):
+            w.tick()
+        self.assertIn("تأخرنا", self.sent[-1])
+        self.assertEqual(state["positions"], {})
+
+    def test_broken_source_warns_once(self):
+        pages = {"binance": {"weird": True}, "upbit": UPBIT_PAGE}
+        w, _ = self.make_watcher(pages)
+        w.tick()
+        w.tick()
+        warnings = [m for m in self.sent if "ما گدرت أقرا إعلانات Binance" in m]
+        self.assertEqual(len(warnings), 1)
+        self.assertIn("❌", w.report())
+        self.assertIn("✅", w.report())
