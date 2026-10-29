@@ -71,9 +71,22 @@ def close_position(state, broker, symbol, price, why):
     state["cooldown"][symbol] = int(time.time())
     del state["positions"][symbol]
     log.info("SELL %s @ %.6g  %s  pnl %+.2f USDT (%+.1f%%)", symbol, price, why, pnl, 100 * pnl / pos["cost"])
-    reason = {"stop": "وقف الخسارة/الربح", "time": "ما تحركت", "tp": "قبض الربح"}.get(why, why)
-    notify.send(f"{'🟢' if pnl > 0 else '🔴'} بيع {symbol[:-4]} ({reason})\n"
-                f"{'ربح' if pnl > 0 else 'خسارة'}: {pnl:+.2f}$ ({100 * pnl / pos['cost']:+.1f}%)")
+    hours = (time.time() - pos["opened"]) / 3600
+    if why == "time":
+        reason = f"ما تحركت خلال {hours:.0f} ساعة"
+    elif pnl > 0:
+        reason = "السعر بدا ينزل من القمة، فبعت وحفظت الربح"
+    else:
+        reason = "السعر نزل، فبعت حتى ما تكبر الخسارة"
+    if abs(pnl) < pos["cost"] * 0.005:
+        head = f"⚪ بعت {symbol[:-4]} بدون ربح ولا خسارة"
+        if why != "time":
+            reason = "السعر رجع لنفس سعر الشراء، فبعت"
+    else:
+        head = (f"{'🟢 ربح' if pnl > 0 else '🔴 خسارة'}: بعت {symbol[:-4]}\n"
+                f"{'ربحت' if pnl > 0 else 'خسرت'} {abs(pnl):.2f}$ ({100 * pnl / pos['cost']:+.1f}%)")
+    extra = "\nوالربح اللي قبضته قبل من هاي العملة محفوظ 💰" if pos.get("tp_done") else ""
+    notify.send(f"{head}\nالسبب: {reason}{extra}")
 
 
 def take_profit(state, broker, symbol, price):
@@ -95,8 +108,9 @@ def take_profit(state, broker, symbol, price):
     pos["stop"] = max(pos["stop"], pos["entry"] * (1 + 2 * config.FEE_RATE))
     log.info("TAKE %s @ %.6g  sold %.0f%%  pnl %+.2f USDT, rest is risk-free",
              symbol, price, 100 * share, proceeds - cost)
-    notify.send(f"💰 قبض ربح {symbol[:-4]}: باع {100 * share:.0f}% وربح {proceeds - cost:+.2f}$\n"
-                f"الباقي صار بدون خطر")
+    notify.send(f"💰 قبضت ربح من {symbol[:-4]}\n"
+                f"بعت نصها وربحت {proceeds - cost:.2f}$\n"
+                f"النص الباقي هسه ما يخسر، وإذا كملت تصعد نربح وياها")
 
 
 def manage_positions(state, broker, px):
@@ -129,8 +143,17 @@ def risk_gate(state, eq):
     if state.get("day") != today:
         if state.get("day"):
             change = eq - state["day_start_equity"]
-            notify.send(f"📊 ملخص اليوم: {change:+.2f}$ ({change / state['day_start_equity']:+.1%})\n"
-                        f"الرصيد: {eq:.2f}$ | صفقات مفتوحة: {len(state['positions'])}")
+            today_trades = [t for t in state["trades"]
+                            if datetime.fromtimestamp(t["closed"], timezone.utc).strftime("%Y-%m-%d") == state["day"]]
+            if abs(change) < 0.01:
+                result = "⚪ ما تغير شي"
+            else:
+                result = (f"{'📈 ربحنا' if change > 0 else '📉 خسرنا'} {abs(change):.2f}$ "
+                          f"({change / state['day_start_equity']:+.1%})")
+            notify.send(f"📊 ملخص يوم أمس\n{result}\n"
+                        f"💵 الرصيد هسه: {eq:.2f}$\n"
+                        f"🔁 صفقات انسدت: {len(today_trades)}\n"
+                        f"⏳ عملات ماسكها هسه: {len(state['positions'])}")
         state["day"], state["day_start_equity"] = today, eq
     if state.get("halted"):
         return "halted"
@@ -154,6 +177,22 @@ def new_listings(state, tickers, days=3):
         if t["symbol"].endswith("USDT") and t["symbol"] not in seen:
             seen[t["symbol"]] = 0 if first_run else now
     return [s for s, ts in seen.items() if ts and now - ts < days * 86400]
+
+
+TAG_AR = {"new": "عملة جديدة", "meme": "عملة ميم", "trending": "ترند", "gainer": "صاعدة هواية اليوم"}
+
+
+def buy_message(sig, cost, stop_dist):
+    what = " + ".join(TAG_AR[t] for t in sig.tags if t in TAG_AR)
+    lines = [f"🚀 اشتريت {sig.symbol[:-4]} بـ {cost:.2f}$"]
+    if what:
+        lines.append(f"🏷 {what}")
+    if sig.vol_ratio:
+        lines.append(f"📊 كسرت أعلى سعر إلها، والتداول عليها صار {sig.vol_ratio:.0f} أضعاف")
+    lines.append(f"🛡 إذا نزلت {100 * stop_dist:.0f}% أبيعها")
+    if config.TAKE_PROFIT_PCT:
+        lines.append(f"💰 إذا صعدت {100 * config.TAKE_PROFIT_PCT:.0f}% أبيع نصها وأقبض الربح")
+    return "\n".join(lines)
 
 
 def find_entries(state, broker, px, eq, tickers):
@@ -220,8 +259,7 @@ def find_entries(state, broker, px, eq, tickers):
         }
         log.info("BUY  %s @ %.6g  %.2f USDT  stop %.6g  [%s]",
                  sig.symbol, entry, cost, entry * (1 - stop_dist), sig.reason)
-        notify.send(f"🚀 شراء {sig.symbol[:-4]} بـ {cost:.2f}$\n"
-                    f"السعر {entry:.6g} | وقف الخسارة -{100 * stop_dist:.0f}%\n{sig.reason}")
+        notify.send(buy_message(sig, cost, stop_dist))
 
 
 def cycle(state, broker):

@@ -16,6 +16,8 @@ class Signal:
     price: float
     atr: float
     reason: str
+    tags: tuple = ()
+    vol_ratio: float = 0.0
 
 
 def market_regime(btc_candles, fng):
@@ -123,4 +125,5 @@ def evaluate_momentum(symbol, candles, tags=(), max_atr_pct=0.15, vol_mult=3.0, 
 
     score = 40 + min(vol_ratio, 10) * 4 + sum(TAG_BONUS.get(t, 0) for t in tags)
     label = "+".join(tags) or "coin"
-    return Signal(symbol, score, price, a, f"{label} pump vol x{vol_ratio:.1f} rsi {r[-1]:.0f} 1h {run_1h:+.0%}")
+    return Signal(symbol, score, price, a, f"{label} pump vol x{vol_ratio:.1f} rsi {r[-1]:.0f} 1h {run_1h:+.0%}",
+                  tuple(tags), vol_ratio)

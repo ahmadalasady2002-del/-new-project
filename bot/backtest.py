@@ -221,7 +221,23 @@ def overrides(values):
             setattr(config, k, v)
 
 
-def sweep(history, tags, days):
+VARIANT_AR = {
+    "current": "الحالية",
+    "vol x5": "انفجار أقوى (تداول ×5)",
+    "6h high": "يكسر قمة 6 ساعات",
+    "vol x5 + 6h high": "انفجار أقوى + قمة 6 ساعات",
+    "wide stop": "وقف خسارة أعرض",
+    "no take-profit": "بدون قبض ربح",
+    "take-profit 20%": "قبض الربح عند 20%",
+    "hold 24h": "يمسك العملة 24 ساعة",
+    "1h candles": "شموع ساعة",
+    "1h candles + vol x5": "شموع ساعة + انفجار أقوى",
+    "1h + vol x5 + wide stop": "شموع ساعة + انفجار أقوى + وقف أعرض",
+}
+
+
+def sweep(history, tags):
+    """Run every variant on the same history; best ending balance first."""
     hourly = {s: to_hourly(cs) for s, cs in history.items()}
     results = []
     for name, (values, use_hourly) in VARIANTS.items():
@@ -229,10 +245,64 @@ def sweep(history, tags, days):
             sim = run(hourly if use_hourly else history, tags, bars_per_hour=1 if use_hourly else 4)
         wins = sum(t["pnl"] > 0 for t in sim.trades)
         results.append((sim.cash, name, len(sim.trades), wins, sim.max_dd))
-    results.sort(reverse=True)
-    lines = [f"{days} days | {len(history)} coins | start 100 USDT", "end    trades win%  maxDD  variant"]
+    return sorted(results, reverse=True)
+
+
+def sweep_text(results, days, n_coins):
+    lines = [f"{days} days | {n_coins} coins | start 100 USDT", "end    trades win%  maxDD  variant"]
     for cash, name, n, wins, dd in results:
         lines.append(f"{cash:6.1f} {n:6d} {wins / max(n, 1):4.0%} {-dd:6.1%}  {name}")
+    return "\n".join(lines)
+
+
+def money(x):
+    return f"{x:.2f}".rstrip("0").rstrip(".")
+
+
+def sweep_message(results, days, n_coins):
+    medals = ["🥇", "🥈", "🥉"]
+    lines = [f"🧪 جربت {len(results)} نسخ من البوت على أسعار آخر {days} يوم، على {n_coins} عملات",
+             "كل نسخة بدت بـ 100$، وهاي النتيجة من الأحسن للأسوأ:", ""]
+    for k, (cash, name, n, wins, dd) in enumerate(results):
+        mark = medals[k] if k < 3 else f"{k + 1}."
+        icon = "📈" if cash > 100 else "📉"
+        lines.append(f"{mark} {VARIANT_AR.get(name, name)}")
+        lines.append(f"    {icon} صارت {money(cash)}$ ({cash - 100:+.1f}%)")
+        lines.append(f"    🔁 {n} صفقة، ربحت منها {wins / max(n, 1):.0%}")
+        if n < 20:
+            lines.append("    ⚠️ صفقاتها قليلة، فنتيجتها ممكن تكون حظ")
+        lines.append("")
+    best = results[0]
+    if best[0] > 100:
+        lines.append(f"✅ الأحسن: {VARIANT_AR.get(best[1], best[1])}")
+    else:
+        lines.append("❌ ولا نسخة ربحت بهالفترة")
+    return "\n".join(lines)
+
+
+def summary_message(sim, start_cash, days, n_coins):
+    trades = sim.trades
+    wins = [t for t in trades if t["pnl"] > 0]
+    losses = [t for t in trades if t["pnl"] <= 0]
+    final = sim.cash
+    change = final / start_cash - 1
+    lines = [
+        f"🧪 جربت البوت على أسعار آخر {days} يوم، على {n_coins} عملات",
+        "",
+        f"💵 الـ {money(start_cash)}$ صارت {money(final)}$",
+        f"{'📈 ربح' if change > 0 else '📉 خسارة'} {abs(change):.1%}",
+        "",
+        f"🔁 سوى {len(trades)} صفقة:",
+        f"    ✅ {len(wins)} ربحت، بمعدل {sum(t['pct'] for t in wins) / max(len(wins), 1):+.1%} للصفقة",
+        f"    ❌ {len(losses)} خسرت، بمعدل {sum(t['pct'] for t in losses) / max(len(losses), 1):+.1%} للصفقة",
+        f"⚠️ أكبر نزلة بالرصيد: {sim.max_dd:.1%}" + (" (والبوت چان راح يوگف)" if sim.halted else ""),
+    ]
+    if trades:
+        by_pnl = sorted(trades, key=lambda t: t["pnl"])
+        lines += ["",
+                  f"🏆 أحسن صفقة: {by_pnl[-1]['symbol'][:-4]} {by_pnl[-1]['pct']:+.0%}",
+                  f"💔 أسوأ صفقة: {by_pnl[0]['symbol'][:-4]} {by_pnl[0]['pct']:+.0%}"]
+    lines += ["", "✅ الخلاصة: الاستراتيجية ربحت" if change > 0 else "❌ الخلاصة: الاستراتيجية خسرت"]
     return "\n".join(lines)
 
 
@@ -252,13 +322,13 @@ def main():
             print(f"  skip {sym}: {e}")
     print("replaying...")
     if args.sweep:
-        text = sweep(history, tags, args.days)
-        title = "🧪 مقارنة الاستراتيجيات"
+        results = sweep(history, tags)
+        print(sweep_text(results, args.days, len(history)))
+        notify.send(sweep_message(results, args.days, len(history)))
     else:
-        text = summary(run(history, tags), 100.0, args.days, len(history))
-        title = f"🧪 نتيجة الاختبار على آخر {args.days} يوم"
-    print(text)
-    notify.send(f"{title}:\n{text}")
+        sim = run(history, tags)
+        print(summary(sim, 100.0, args.days, len(history)))
+        notify.send(summary_message(sim, 100.0, args.days, len(history)))
 
 
 if __name__ == "__main__":
