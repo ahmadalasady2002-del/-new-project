@@ -33,6 +33,7 @@ UPBIT_SITE = {"Origin": "https://upbit.com", "Referer": "https://upbit.com/"}
 SOURCE_AR = {"binance": "Binance", "upbit": "إعلانات Upbit", "upbit_markets": "أسواق Upbit"}
 TICKER = re.compile(r"\(([A-Z0-9]{2,15})\)")
 NOT_COINS = {"KRW", "BTC", "USDT", "USD", "ETH"}
+MAX_NEW_PER_READ = 3
 
 
 def find_articles(obj):
@@ -119,19 +120,24 @@ class Watcher:
                 self.last_title[source] = articles[0][1]
             first_time = source not in seen
             known = set(seen.get(source, []))
-            for aid, title in articles:
-                if aid in known:
-                    continue
-                coins = listing_coins(source, title)
-                if coins:
-                    self.recent.insert(0, (time.time(), source, title, coins))
-                    del self.recent[10:]
-                    if not first_time:  # on the very first read, everything is old news
-                        for coin in coins:
-                            self.on_listing(source, coin, title)
+            fresh = [(aid, title, coins) for aid, title in articles if aid not in known
+                     for coins in [listing_coins(source, title)] if coins]
+            # Real listings come one or two at a time. A burst means our memory of the page
+            # is off (first read, or the page changed shape): resync silently instead of trading.
+            act = not first_time and len(fresh) <= MAX_NEW_PER_READ
+            if fresh and not act and not first_time:
+                log.warning("announcements %s: %d 'new' listings at once, resyncing without trading",
+                            source, len(fresh))
+            for aid, title, coins in fresh:
+                self.recent.insert(0, (time.time(), source, title, coins))
+                del self.recent[10:]
+                if act:
+                    for coin in coins:
+                        self.on_listing(source, coin, title)
             ids = [a for a, _ in articles]
             with self.lock:
-                seen[source] = (ids + [a for a in seen.get(source, []) if a not in ids])[:200]
+                # Keep every id on the page (Upbit's market list has hundreds), plus older ones.
+                seen[source] = (ids + [a for a in seen.get(source, []) if a not in ids])[:max(len(ids), 200) + 200]
         self.manage()
 
     def on_listing(self, source, coin, title):

@@ -580,6 +580,28 @@ class AnnounceTests(unittest.TestCase):
         self.assertIn("أسواق Upbit", self.sent[-1])
         self.assertIn("آخر خبر قريته: Binance Will List Lombard", w.report())
 
+    def test_big_market_list_is_not_replayed_as_news(self):
+        markets = [{"market": f"KRW-C{i}"} for i in range(450)]
+        pages = {"binance": BINANCE_PAGE, "upbit": UPBIT_PAGE, "upbit_markets": markets}
+        w, state = self.make_watcher(pages)
+        with mock.patch.object(data, "price", return_value=1.0) as price:
+            for _ in range(3):
+                w.tick()
+        price.assert_not_called()
+        self.assertEqual(self.sent, [])
+        self.assertEqual(len(state["ann_seen"]["upbit_markets"]), 450)
+
+    def test_burst_of_new_ids_resyncs_without_trading(self):
+        pages = {"binance": BINANCE_PAGE, "upbit": UPBIT_PAGE, "upbit_markets": [{"market": "KRW-A"}]}
+        w, state = self.make_watcher(pages)
+        w.tick()
+        pages["upbit_markets"] = [{"market": f"KRW-N{i}"} for i in range(10)]
+        with mock.patch.object(data, "price", return_value=1.0) as price:
+            w.tick()
+            w.tick()
+        price.assert_not_called()
+        self.assertEqual(state["positions"], {})
+
     def test_broken_source_warns_once(self):
         pages = {"binance": {"weird": True}, "upbit": UPBIT_PAGE}
         w, _ = self.make_watcher(pages)
