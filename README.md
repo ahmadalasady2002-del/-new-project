@@ -71,6 +71,7 @@ curl -sSL https://raw.githubusercontent.com/ahmadalasady2002-del/-new-project/cl
 | `bot-log` | آخر شي سواه البوت |
 | `bot-live` | يحوّل البوت لفلوس حقيقية |
 | `bot-test` | يجرب الاستراتيجية على أسعار آخر 30 يوم الحقيقية |
+| `bot-test --days 60 --sweep` | يقارن 11 نسخة من الاستراتيجية على آخر 60 يوم |
 | `bot-telegram` | يربط إشعارات تلگرام |
 | `bot-update` | يجيب آخر نسخة من البوت ويعيد تشغيله |
 | `bot-stop` | يطفي البوت |

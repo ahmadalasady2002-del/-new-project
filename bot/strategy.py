@@ -91,7 +91,7 @@ def evaluate(symbol, candles, trending=False, max_atr_pct=0.06):
 TAG_BONUS = {"new": 15, "trending": 10, "gainer": 5, "meme": 5}
 
 
-def evaluate_momentum(symbol, candles, tags=(), max_atr_pct=0.15):
+def evaluate_momentum(symbol, candles, tags=(), max_atr_pct=0.15, vol_mult=3.0, lookback=12, bars_per_hour=4):
     """Aggressive setup for meme coins and new listings on short candles:
     price breaks its recent high on a volume explosion, before it goes vertical."""
     if len(candles) < 30:
@@ -107,16 +107,16 @@ def evaluate_momentum(symbol, candles, tags=(), max_atr_pct=0.15):
     if atr_pct < 0.004 or atr_pct > max_atr_pct:
         return None
 
-    prior_high = max(c["high"] for c in candles[-13:-1])
+    prior_high = max(c["high"] for c in candles[-lookback - 1:-1])
     base_vols = vols[-21:-1]
     avg_vol = sum(base_vols) / len(base_vols)
     vol_ratio = vols[-1] / avg_vol if avg_vol else 0
     e20 = ind.ema(closes, 20)
     e50 = ind.ema(closes, 50)
     trend_ok = price > e20[-1] and (not e50 or e20[-1] > e50[-1])
-    run_1h = price / closes[-5] - 1
+    run_1h = price / closes[-1 - bars_per_hour] - 1
 
-    if not (price > prior_high and vol_ratio >= 3 and 55 <= r[-1] <= 85 and trend_ok):
+    if not (price > prior_high and vol_ratio >= vol_mult and 55 <= r[-1] <= 85 and trend_ok):
         return None
     if run_1h > 0.25:
         return None  # already went vertical - late buyers get dumped on

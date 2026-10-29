@@ -2,6 +2,7 @@
 
   python -m bot.backtest              # last 30 days
   python -m bot.backtest --days 60
+  python -m bot.backtest --sweep      # compare strategy variants on the same data
 
 Rules match the live bot: same signals, sizes, stops, take-profit and loss limits.
 Stops fill at the stop price (or the open, if price gapped through it), and every
@@ -9,6 +10,7 @@ fill pays the fee plus slippage. The coins are today's popular ones, which flatt
 the result a bit: coins that died during the period aren't in the test.
 """
 import argparse
+from contextlib import contextmanager
 from datetime import datetime, timezone
 
 from . import config, data, notify, strategy
@@ -84,26 +86,34 @@ class Sim:
 
 def pick_symbols(limit):
     tickers = data.tickers_24h()
-    if config.STRATEGY == "meme":
-        memes = data.meme_symbols()
-        rows = [t for t in tickers if t["symbol"].endswith("USDT") and t["symbol"][:-4] in memes
-                and float(t["quoteVolume"]) >= config.MIN_QUOTE_VOLUME]
-        rows.sort(key=lambda t: float(t["quoteVolume"]), reverse=True)
-        return {t["symbol"]: ["meme"] for t in rows[:limit]}
-    return {s: [] for s in data.build_universe(tickers, set())[:limit]}
+    if config.STRATEGY != "meme":
+        return {s: [] for s in data.build_universe(tickers, set())[:limit]}
+    memes = data.meme_symbols()
+    majors = {"BTC", "ETH", "SOL", "XRP", "BNB", "ADA", "TRX", "TON", "LTC", "BCH", "DOT", "LINK", "AVAX"}
+    rows = []
+    for t in tickers:
+        sym, vol = t["symbol"], float(t["quoteVolume"])
+        base = sym[:-4]
+        if (not sym.endswith("USDT") or vol < config.MIN_QUOTE_VOLUME or base in config.STABLECOINS
+                or base in majors or base.endswith(("2L", "3L", "2S", "3S"))):
+            continue
+        rows.append((base not in memes, -vol, sym, base))  # memes first, then by volume
+    rows.sort()
+    return {sym: ["meme"] if base in memes else [] for _, _, sym, base in rows[:limit]}
 
 
 def quick_reject(candles, i):
     """Cheap pre-check so we only run the full indicators on candidate candles."""
-    if i < 21:
+    lookback = config.MOMENTUM_LOOKBACK
+    if i < max(21, lookback):
         return True
     c = candles[i]
     avg_vol = sum(x["volume"] for x in candles[i - 20:i]) / 20
-    prior_high = max(x["high"] for x in candles[i - 12:i])
-    return c["volume"] < 2 * avg_vol or c["close"] <= prior_high
+    prior_high = max(x["high"] for x in candles[i - lookback:i])
+    return c["volume"] < min(2, config.MOMENTUM_VOL_MULT) * avg_vol or c["close"] <= prior_high
 
 
-def run(history, tags, start_cash=100.0):
+def run(history, tags, start_cash=100.0, bars_per_hour=4):
     sim = Sim(start_cash)
     index = {s: {c["time"]: i for i, c in enumerate(cs)} for s, cs in history.items()}
     last = {}
@@ -129,7 +139,8 @@ def run(history, tags, start_cash=100.0):
                 continue
             window = cs[max(0, i - 249): i + 1]
             if config.STRATEGY == "meme":
-                sig = strategy.evaluate_momentum(sym, window, tags[sym], config.MAX_ATR_PCT)
+                sig = strategy.evaluate_momentum(sym, window, tags[sym], config.MAX_ATR_PCT,
+                                                 config.MOMENTUM_VOL_MULT, config.MOMENTUM_LOOKBACK, bars_per_hour)
             else:
                 sig = strategy.evaluate(sym, window, False, config.MAX_ATR_PCT)
             if sig:
@@ -167,10 +178,69 @@ def summary(sim, start_cash, days, n_coins):
     return "\n".join(lines)
 
 
+def to_hourly(candles):
+    """Merge 15m candles into 1h candles."""
+    hours = {}
+    for c in candles:
+        h = c["time"] - c["time"] % 3600
+        if h not in hours:
+            hours[h] = dict(c, time=h)
+        else:
+            m = hours[h]
+            m["high"], m["low"] = max(m["high"], c["high"]), min(m["low"], c["low"])
+            m["close"], m["volume"] = c["close"], m["volume"] + c["volume"]
+    return [hours[h] for h in sorted(hours)]
+
+
+# name -> (config overrides, use 1h candles)
+VARIANTS = {
+    "current": ({}, False),
+    "vol x5": ({"MOMENTUM_VOL_MULT": 5}, False),
+    "6h high": ({"MOMENTUM_LOOKBACK": 24}, False),
+    "vol x5 + 6h high": ({"MOMENTUM_VOL_MULT": 5, "MOMENTUM_LOOKBACK": 24}, False),
+    "wide stop": ({"MIN_STOP_PCT": 0.07, "MAX_STOP_PCT": 0.15, "STOP_ATR": 3.5}, False),
+    "no take-profit": ({"TAKE_PROFIT_PCT": 0}, False),
+    "take-profit 20%": ({"TAKE_PROFIT_PCT": 0.20}, False),
+    "hold 24h": ({"MAX_HOLD_HOURS": 24}, False),
+    "1h candles": ({"MOMENTUM_LOOKBACK": 12}, True),
+    "1h candles + vol x5": ({"MOMENTUM_LOOKBACK": 12, "MOMENTUM_VOL_MULT": 5}, True),
+    "1h + vol x5 + wide stop": ({"MOMENTUM_VOL_MULT": 5, "MIN_STOP_PCT": 0.07, "MAX_STOP_PCT": 0.15,
+                                 "STOP_ATR": 3.5}, True),
+}
+
+
+@contextmanager
+def overrides(values):
+    saved = {k: getattr(config, k) for k in values}
+    for k, v in values.items():
+        setattr(config, k, v)
+    try:
+        yield
+    finally:
+        for k, v in saved.items():
+            setattr(config, k, v)
+
+
+def sweep(history, tags, days):
+    hourly = {s: to_hourly(cs) for s, cs in history.items()}
+    results = []
+    for name, (values, use_hourly) in VARIANTS.items():
+        with overrides(values):
+            sim = run(hourly if use_hourly else history, tags, bars_per_hour=1 if use_hourly else 4)
+        wins = sum(t["pnl"] > 0 for t in sim.trades)
+        results.append((sim.cash, name, len(sim.trades), wins, sim.max_dd))
+    results.sort(reverse=True)
+    lines = [f"{days} days | {len(history)} coins | start 100 USDT", "end    trades win%  maxDD  variant"]
+    for cash, name, n, wins, dd in results:
+        lines.append(f"{cash:6.1f} {n:6d} {wins / max(n, 1):4.0%} {-dd:6.1%}  {name}")
+    return "\n".join(lines)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--days", type=int, default=30)
-    ap.add_argument("--coins", type=int, default=30)
+    ap.add_argument("--coins", type=int, default=40)
+    ap.add_argument("--sweep", action="store_true", help="compare strategy variants")
     args = ap.parse_args()
     tags = pick_symbols(args.coins)
     print(f"downloading {len(tags)} coins x {args.days} days of {config.INTERVAL} candles...")
@@ -181,10 +251,14 @@ def main():
         except Exception as e:
             print(f"  skip {sym}: {e}")
     print("replaying...")
-    sim = run(history, tags)
-    text = summary(sim, 100.0, args.days, len(history))
+    if args.sweep:
+        text = sweep(history, tags, args.days)
+        title = "🧪 مقارنة الاستراتيجيات"
+    else:
+        text = summary(run(history, tags), 100.0, args.days, len(history))
+        title = f"🧪 نتيجة الاختبار على آخر {args.days} يوم"
     print(text)
-    notify.send(f"🧪 نتيجة الاختبار على آخر {args.days} يوم:\n{text}")
+    notify.send(f"{title}:\n{text}")
 
 
 if __name__ == "__main__":

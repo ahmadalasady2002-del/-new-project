@@ -68,6 +68,10 @@ UNIVERSE_SIZE = _i("UNIVERSE_SIZE", _DEFAULTS["UNIVERSE_SIZE"])
 INTERVAL = os.getenv("INTERVAL", _DEFAULTS["INTERVAL"])
 MAX_ATR_PCT = _f("MAX_ATR_PCT", _DEFAULTS["MAX_ATR_PCT"])  # skip coins wilder than this per candle
 
+# Meme entry: break the high of the last N candles on at least X times normal volume.
+MOMENTUM_LOOKBACK = _i("MOMENTUM_LOOKBACK", 12)
+MOMENTUM_VOL_MULT = _f("MOMENTUM_VOL_MULT", 3)
+
 # --- risk ---
 RISK_PER_TRADE = _f("RISK_PER_TRADE", _DEFAULTS["RISK_PER_TRADE"])  # max equity lost per trade
 MAX_POSITION_PCT = _f("MAX_POSITION_PCT", _DEFAULTS["MAX_POSITION_PCT"])  # max equity in one coin

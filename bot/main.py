@@ -186,7 +186,9 @@ def find_entries(state, broker, px, eq, tickers):
         try:
             candles = data.klines(symbol)
             if config.STRATEGY == "meme":
-                sig = strategy.evaluate_momentum(symbol, candles, tags, config.MAX_ATR_PCT)
+                sig = strategy.evaluate_momentum(
+                    symbol, candles, tags, config.MAX_ATR_PCT, config.MOMENTUM_VOL_MULT,
+                    config.MOMENTUM_LOOKBACK, max(1, 3600 // data.INTERVAL_SECONDS[config.INTERVAL]))
             else:
                 sig = strategy.evaluate(symbol, candles, "trending" in tags, config.MAX_ATR_PCT)
         except Exception as e:

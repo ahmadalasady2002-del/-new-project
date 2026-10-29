@@ -252,3 +252,22 @@ class BacktestTests(unittest.TestCase):
         self.assertTrue(all(a["time"] < b["time"] for a, b in zip(h, h[1:])))
         self.assertGreaterEqual(h[0]["time"], now - 15 * 86400)
         self.assertLessEqual(h[-1]["time"] + 900, time.time())
+
+
+class SweepTests(unittest.TestCase):
+    def test_to_hourly_merges_four_candles(self):
+        from bot import backtest
+        base = 1_700_000_000 - 1_700_000_000 % 3600
+        cs = [{"time": base + k * 900, "open": k + 1, "high": k + 2, "low": k + 0.5, "close": k + 1.5,
+               "volume": 10} for k in range(8)]
+        h = backtest.to_hourly(cs)
+        self.assertEqual(len(h), 2)
+        self.assertEqual((h[0]["open"], h[0]["high"], h[0]["low"], h[0]["close"], h[0]["volume"]),
+                         (1, 5, 0.5, 4.5, 40))
+
+    def test_overrides_restore_config(self):
+        from bot import backtest
+        before = config.MOMENTUM_VOL_MULT
+        with backtest.overrides({"MOMENTUM_VOL_MULT": 99}):
+            self.assertEqual(config.MOMENTUM_VOL_MULT, 99)
+        self.assertEqual(config.MOMENTUM_VOL_MULT, before)
