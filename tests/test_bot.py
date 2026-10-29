@@ -1,9 +1,12 @@
 import math
+import os
 import tempfile
 import time
 import unittest
 from pathlib import Path
 from unittest import mock
+
+os.environ["STRATEGY"] = "safe"  # most tests check the calm defaults
 
 from bot import config, data, indicators, main, strategy
 from bot.broker import PaperBroker
@@ -139,6 +142,52 @@ class LoopTests(unittest.TestCase):
         self.assertEqual(main.risk_gate(state, 65), "halted")
         self.assertTrue(state["halted"])
         self.assertEqual(main.risk_gate(state, 120), "halted")
+
+
+def pump_candles(n=120, jump=1.04, vol_mult=6):
+    """Sideways-up 15m chart that breaks out on a volume spike in the last candle."""
+    closes = [1.0 * (1.0005 ** i) * (1 + 0.01 * math.sin(i / 2)) for i in range(n)]
+    closes[-1] = max(closes[-13:-1]) * jump
+    vols = [1000] * n
+    vols[-1] = 1000 * vol_mult
+    return candles_from(closes, vols)
+
+
+class MemeTests(unittest.TestCase):
+    def test_pump_detected_with_tag_bonus(self):
+        plain = strategy.evaluate_momentum("XUSDT", pump_candles())
+        tagged = strategy.evaluate_momentum("XUSDT", pump_candles(), ["new", "meme"])
+        self.assertIsNotNone(plain)
+        self.assertEqual(tagged.score - plain.score, 20)
+        self.assertIn("new+meme pump", tagged.reason)
+
+    def test_no_volume_no_signal(self):
+        self.assertIsNone(strategy.evaluate_momentum("XUSDT", pump_candles(vol_mult=1.5)))
+
+    def test_too_new_or_already_vertical(self):
+        self.assertIsNone(strategy.evaluate_momentum("XUSDT", pump_candles(n=25)))
+        c = pump_candles()
+        for k in range(1, 5):
+            for key in ("open", "close", "high", "low"):
+                c[-k][key] *= 1.4 ** (5 - k) / 1.4 ** 4 * 1.4
+        self.assertIsNone(strategy.evaluate_momentum("XUSDT", c))
+
+    def test_meme_universe(self):
+        tickers = [
+            {"symbol": "PEPEUSDT", "quoteVolume": "5e7", "lastPrice": "1", "change": "0.02"},
+            {"symbol": "ABCUSDT", "quoteVolume": "3e6", "lastPrice": "1", "change": "0.40"},
+            {"symbol": "BTCUSDT", "quoteVolume": "1e9", "lastPrice": "1", "change": "0.01"},
+            {"symbol": "WIFUSDT", "quoteVolume": "1e5", "lastPrice": "1", "change": "0.90"},
+        ]
+        with mock.patch.object(config, "MIN_QUOTE_VOLUME", 1_000_000):
+            u = data.build_meme_universe(tickers, set(), {"PEPE", "WIF"})
+        self.assertEqual(list(u), ["ABCUSDT", "PEPEUSDT"])  # BTC isn't hot, WIF too thin
+        self.assertEqual(u["ABCUSDT"], ["gainer"])
+
+    def test_new_listings_tracked_after_first_run(self):
+        state = {}
+        self.assertEqual(main.new_listings(state, [{"symbol": "OLDUSDT"}]), [])
+        self.assertEqual(main.new_listings(state, [{"symbol": "OLDUSDT"}, {"symbol": "NEWUSDT"}]), ["NEWUSDT"])
 
 
 if __name__ == "__main__":

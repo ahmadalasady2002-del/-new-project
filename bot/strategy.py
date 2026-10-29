@@ -34,7 +34,7 @@ def market_regime(btc_candles, fng):
     return "on"
 
 
-def evaluate(symbol, candles, trending=False):
+def evaluate(symbol, candles, trending=False, max_atr_pct=0.06):
     if len(candles) < 210:
         return None
     closes = [c["close"] for c in candles]
@@ -52,7 +52,7 @@ def evaluate(symbol, candles, trending=False):
     atr_pct = a / price
 
     # Ignore coins that are dead or insanely volatile.
-    if atr_pct < 0.003 or atr_pct > 0.06:
+    if atr_pct < 0.003 or atr_pct > max_atr_pct:
         return None
 
     best = None
@@ -86,3 +86,41 @@ def evaluate(symbol, candles, trending=False):
         best.score += 10
         best.reason += " trending"
     return best
+
+
+TAG_BONUS = {"new": 15, "trending": 10, "gainer": 5, "meme": 5}
+
+
+def evaluate_momentum(symbol, candles, tags=(), max_atr_pct=0.15):
+    """Aggressive setup for meme coins and new listings on short candles:
+    price breaks its recent high on a volume explosion, before it goes vertical."""
+    if len(candles) < 30:
+        return None  # the first hours after a listing are a coin flip
+    closes = [c["close"] for c in candles]
+    vols = [c["volume"] for c in candles]
+    price = closes[-1]
+    a = ind.atr(candles, 14)
+    r = ind.rsi(closes, 14)
+    if not a or price <= 0:
+        return None
+    atr_pct = a / price
+    if atr_pct < 0.004 or atr_pct > max_atr_pct:
+        return None
+
+    prior_high = max(c["high"] for c in candles[-13:-1])
+    base_vols = vols[-21:-1]
+    avg_vol = sum(base_vols) / len(base_vols)
+    vol_ratio = vols[-1] / avg_vol if avg_vol else 0
+    e20 = ind.ema(closes, 20)
+    e50 = ind.ema(closes, 50)
+    trend_ok = price > e20[-1] and (not e50 or e20[-1] > e50[-1])
+    run_1h = price / closes[-5] - 1
+
+    if not (price > prior_high and vol_ratio >= 3 and 55 <= r[-1] <= 85 and trend_ok):
+        return None
+    if run_1h > 0.25:
+        return None  # already went vertical - late buyers get dumped on
+
+    score = 40 + min(vol_ratio, 10) * 4 + sum(TAG_BONUS.get(t, 0) for t in tags)
+    label = "+".join(tags) or "coin"
+    return Signal(symbol, score, price, a, f"{label} pump vol x{vol_ratio:.1f} rsi {r[-1]:.0f} 1h {run_1h:+.0%}")

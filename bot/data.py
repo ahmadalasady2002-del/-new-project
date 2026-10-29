@@ -44,7 +44,8 @@ def bybit_public(path, params):
 def tickers_24h():
     rows = bybit_public("/v5/market/tickers", {"category": "spot"})["list"]
     return [
-        {"symbol": r["symbol"], "lastPrice": r["lastPrice"], "quoteVolume": r["turnover24h"]}
+        {"symbol": r["symbol"], "lastPrice": r["lastPrice"], "quoteVolume": r["turnover24h"],
+         "change": r.get("price24hPcnt") or "0"}
         for r in rows
     ]
 
@@ -81,6 +82,17 @@ def trending_symbols():
         return set()
 
 
+def meme_symbols():
+    """Meme coins by volume from CoinGecko, falling back to a built-in list."""
+    try:
+        rows = get_json("https://api.coingecko.com/api/v3/coins/markets", {
+            "vs_currency": "usd", "category": "meme-token", "order": "volume_desc", "per_page": 250,
+        })
+        return {r["symbol"].upper() for r in rows} | config.MEME_COINS
+    except Exception:
+        return set(config.MEME_COINS)
+
+
 def fear_greed():
     """0 = extreme fear, 100 = extreme greed. None if unavailable."""
     try:
@@ -110,3 +122,30 @@ def build_universe(tickers, trending):
         if base in trending and vol >= config.MIN_TRENDING_VOLUME and sym not in universe:
             universe.append(sym)
     return universe
+
+
+def build_meme_universe(tickers, trending, memes):
+    """Meme coins, trending coins, and today's biggest gainers, ranked by heat."""
+    picked = {}
+    for t in tickers:
+        sym = t["symbol"]
+        if not sym.endswith("USDT"):
+            continue
+        base = sym[:-4]
+        if base in config.STABLECOINS or base.endswith(("UP", "DOWN", "BULL", "BEAR", "2L", "3L", "2S", "3S")):
+            continue
+        vol, change = float(t["quoteVolume"]), float(t.get("change") or 0)
+        if vol < config.MIN_QUOTE_VOLUME or float(t["lastPrice"]) <= 0:
+            continue
+        tags = []
+        if base in memes:
+            tags.append("meme")
+        if base in trending:
+            tags.append("trending")
+        if change >= 0.15:
+            tags.append("gainer")
+        if tags:
+            # Hot coins first: big movers, then volume.
+            picked[sym] = (change * 100 + len(tags) * 10 + min(vol / 1e7, 20), tags)
+    ranked = sorted(picked, key=lambda s: picked[s][0], reverse=True)[: config.UNIVERSE_SIZE]
+    return {s: picked[s][1] for s in ranked}

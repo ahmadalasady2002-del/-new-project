@@ -111,6 +111,17 @@ def risk_gate(state, eq):
     return None
 
 
+def new_listings(state, tickers, days=3):
+    """USDT pairs that appeared on the exchange in the last few days."""
+    now = int(time.time())
+    seen = state.setdefault("first_seen", {})
+    first_run = not seen
+    for t in tickers:
+        if t["symbol"].endswith("USDT") and t["symbol"] not in seen:
+            seen[t["symbol"]] = 0 if first_run else now
+    return [s for s, ts in seen.items() if ts and now - ts < days * 86400]
+
+
 def find_entries(state, broker, px, eq, tickers):
     slots = config.MAX_POSITIONS - len(state["positions"])
     if slots <= 0:
@@ -123,15 +134,27 @@ def find_entries(state, broker, px, eq, tickers):
 
     trending = data.trending_symbols()
     now = time.time()
+    if config.STRATEGY == "meme":
+        universe = data.build_meme_universe(tickers, trending, data.meme_symbols())
+        volume = {t["symbol"]: float(t["quoteVolume"]) for t in tickers}
+        for sym in new_listings(state, tickers):
+            if volume.get(sym, 0) >= config.MIN_QUOTE_VOLUME:
+                universe.setdefault(sym, []).insert(0, "new")
+    else:
+        universe = {s: ["trending"] if s[:-4] in trending else [] for s in data.build_universe(tickers, trending)}
+
     signals = []
-    universe = data.build_universe(tickers, trending)
-    for symbol in universe:
+    for symbol, tags in universe.items():
         if symbol in state["positions"]:
             continue
         if now - state["cooldown"].get(symbol, 0) < config.COOLDOWN_HOURS * 3600:
             continue
         try:
-            sig = strategy.evaluate(symbol, data.klines(symbol), symbol[:-4] in trending)
+            candles = data.klines(symbol)
+            if config.STRATEGY == "meme":
+                sig = strategy.evaluate_momentum(symbol, candles, tags, config.MAX_ATR_PCT)
+            else:
+                sig = strategy.evaluate(symbol, candles, "trending" in tags, config.MAX_ATR_PCT)
         except Exception as e:
             log.warning("skip %s: %s", symbol, e)
             continue
@@ -141,7 +164,8 @@ def find_entries(state, broker, px, eq, tickers):
     log.info("scanned %d coins, %d signals%s", len(universe), len(signals),
              f" (best {signals[0].symbol}: {signals[0].reason})" if signals else "")
 
-    size_mult = 0.5 if regime == "caution" else 1.0
+    # The meme strategy is meant to take risk, so it doesn't shrink in a shaky market.
+    size_mult = 0.5 if regime == "caution" and config.STRATEGY != "meme" else 1.0
     for sig in signals[:slots]:
         price = px.get(sig.symbol, sig.price)
         stop_dist = min(max(config.STOP_ATR * sig.atr / price, config.MIN_STOP_PCT), config.MAX_STOP_PCT)
@@ -202,7 +226,7 @@ def main():
 
     setup_logging()
     broker = make_broker(state)
-    log.info("started in %s mode", "LIVE (real money)" if broker.live else "paper")
+    log.info("started in %s mode, strategy %s", "LIVE (real money)" if broker.live else "paper", config.STRATEGY)
     while True:
         try:
             cycle(state, broker)
