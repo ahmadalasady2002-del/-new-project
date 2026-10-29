@@ -73,11 +73,12 @@ def klines(symbol, interval=None, limit=250):
     return candles
 
 
-def history(symbol, interval, days):
-    """Closed candles for the last `days` days, oldest first (Bybit pages 1000 at a time)."""
+def history(symbol, interval, days, skip_days=0):
+    """Closed candles for `days` days ending `skip_days` ago, oldest first (Bybit pages 1000 at a time)."""
     step = INTERVAL_SECONDS[interval]
-    start = int(time.time()) - days * 86400
-    end_ms = int(time.time() * 1000)
+    end = int(time.time()) - skip_days * 86400
+    start = end - days * 86400
+    end_ms = end * 1000
     out = {}
     while True:
         rows = bybit_public("/v5/market/kline", {
@@ -86,7 +87,7 @@ def history(symbol, interval, days):
         })["list"]
         for r in rows:
             t = int(r[0]) // 1000
-            if t >= start and t + step <= time.time():
+            if start <= t and t + step <= min(end, time.time()):
                 out[t] = {"time": t, "open": float(r[1]), "high": float(r[2]), "low": float(r[3]),
                           "close": float(r[4]), "volume": float(r[5])}
         if len(rows) < 1000 or int(rows[-1][0]) // 1000 <= start:

@@ -3,6 +3,7 @@
   python -m bot.backtest              # last 30 days
   python -m bot.backtest --days 60
   python -m bot.backtest --sweep      # compare strategy variants on the same data
+  python -m bot.backtest --days 60 --skip 60   # the 60 days before the last 60 (unseen data)
 
 Rules match the live bot: same signals, sizes, stops, take-profit and loss limits.
 Stops fill at the stop price (or the open, if price gapped through it), and every
@@ -192,20 +193,20 @@ def to_hourly(candles):
     return [hours[h] for h in sorted(hours)]
 
 
-# name -> (config overrides, use 1h candles)
+# name -> (config overrides, use 1h candles). Each one changes one thing from the current settings.
 VARIANTS = {
-    "current": ({}, False),
-    "vol x5": ({"MOMENTUM_VOL_MULT": 5}, False),
-    "6h high": ({"MOMENTUM_LOOKBACK": 24}, False),
-    "vol x5 + 6h high": ({"MOMENTUM_VOL_MULT": 5, "MOMENTUM_LOOKBACK": 24}, False),
-    "wide stop": ({"MIN_STOP_PCT": 0.07, "MAX_STOP_PCT": 0.15, "STOP_ATR": 3.5}, False),
-    "no take-profit": ({"TAKE_PROFIT_PCT": 0}, False),
-    "take-profit 20%": ({"TAKE_PROFIT_PCT": 0.20}, False),
-    "hold 24h": ({"MAX_HOLD_HOURS": 24}, False),
-    "1h candles": ({"MOMENTUM_LOOKBACK": 12}, True),
-    "1h candles + vol x5": ({"MOMENTUM_LOOKBACK": 12, "MOMENTUM_VOL_MULT": 5}, True),
-    "1h + vol x5 + wide stop": ({"MOMENTUM_VOL_MULT": 5, "MIN_STOP_PCT": 0.07, "MAX_STOP_PCT": 0.15,
-                                 "STOP_ATR": 3.5}, True),
+    "current": ({}, True),
+    "15m candles": ({}, False),
+    "vol x3": ({"MOMENTUM_VOL_MULT": 3}, True),
+    "vol x8": ({"MOMENTUM_VOL_MULT": 8}, True),
+    "narrow stop": ({"MIN_STOP_PCT": 0.04, "MAX_STOP_PCT": 0.12, "STOP_ATR": 2.5}, True),
+    "wider stop": ({"MIN_STOP_PCT": 0.10, "MAX_STOP_PCT": 0.20, "STOP_ATR": 4.5}, True),
+    "no take-profit": ({"TAKE_PROFIT_PCT": 0}, True),
+    "take-profit 20%": ({"TAKE_PROFIT_PCT": 0.20}, True),
+    "hold 24h": ({"MAX_HOLD_HOURS": 24}, True),
+    "hold 48h": ({"MAX_HOLD_HOURS": 48}, True),
+    "6h high": ({"MOMENTUM_LOOKBACK": 6}, True),
+    "24h high": ({"MOMENTUM_LOOKBACK": 24}, True),
 }
 
 
@@ -223,16 +224,17 @@ def overrides(values):
 
 VARIANT_AR = {
     "current": "الحالية",
-    "vol x5": "انفجار أقوى (تداول ×5)",
-    "6h high": "يكسر قمة 6 ساعات",
-    "vol x5 + 6h high": "انفجار أقوى + قمة 6 ساعات",
-    "wide stop": "وقف خسارة أعرض",
+    "15m candles": "شموع 15 دقيقة",
+    "vol x3": "انفجار أضعف (تداول ×3)",
+    "vol x8": "انفجار أقوى (تداول ×8)",
+    "narrow stop": "وقف خسارة أضيق",
+    "wider stop": "وقف خسارة أعرض بعد",
     "no take-profit": "بدون قبض ربح",
     "take-profit 20%": "قبض الربح عند 20%",
     "hold 24h": "يمسك العملة 24 ساعة",
-    "1h candles": "شموع ساعة",
-    "1h candles + vol x5": "شموع ساعة + انفجار أقوى",
-    "1h + vol x5 + wide stop": "شموع ساعة + انفجار أقوى + وقف أعرض",
+    "hold 48h": "يمسك العملة 48 ساعة",
+    "6h high": "يكسر قمة 6 ساعات",
+    "24h high": "يكسر قمة 24 ساعة",
 }
 
 
@@ -259,9 +261,9 @@ def money(x):
     return f"{x:.2f}".rstrip("0").rstrip(".")
 
 
-def sweep_message(results, days, n_coins):
+def sweep_message(results, period, n_coins):
     medals = ["🥇", "🥈", "🥉"]
-    lines = [f"🧪 جربت {len(results)} نسخ من البوت على أسعار آخر {days} يوم، على {n_coins} عملات",
+    lines = [f"🧪 جربت {len(results)} نسخ من البوت على أسعار {period}، على {n_coins} عملات",
              "كل نسخة بدت بـ 100$، وهاي النتيجة من الأحسن للأسوأ:", ""]
     for k, (cash, name, n, wins, dd) in enumerate(results):
         mark = medals[k] if k < 3 else f"{k + 1}."
@@ -280,14 +282,14 @@ def sweep_message(results, days, n_coins):
     return "\n".join(lines)
 
 
-def summary_message(sim, start_cash, days, n_coins):
+def summary_message(sim, start_cash, period, n_coins):
     trades = sim.trades
     wins = [t for t in trades if t["pnl"] > 0]
     losses = [t for t in trades if t["pnl"] <= 0]
     final = sim.cash
     change = final / start_cash - 1
     lines = [
-        f"🧪 جربت البوت على أسعار آخر {days} يوم، على {n_coins} عملات",
+        f"🧪 جربت البوت على أسعار {period}، على {n_coins} عملات",
         "",
         f"💵 الـ {money(start_cash)}$ صارت {money(final)}$",
         f"{'📈 ربح' if change > 0 else '📉 خسارة'} {abs(change):.1%}",
@@ -309,26 +311,34 @@ def summary_message(sim, start_cash, days, n_coins):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--days", type=int, default=30)
+    ap.add_argument("--skip", type=int, default=0, help="end the test this many days ago")
     ap.add_argument("--coins", type=int, default=40)
     ap.add_argument("--sweep", action="store_true", help="compare strategy variants")
     args = ap.parse_args()
     tags = pick_symbols(args.coins)
-    print(f"downloading {len(tags)} coins x {args.days} days of {config.INTERVAL} candles...")
+    # Always fetch 15m: the sweep needs it, and 1h candles are built from it.
+    print(f"downloading {len(tags)} coins x {args.days} days of 15m candles...")
     history = {}
     for sym in tags:
         try:
-            history[sym] = data.history(sym, config.INTERVAL, args.days)
+            history[sym] = data.history(sym, "15m", args.days, args.skip)
         except Exception as e:
             print(f"  skip {sym}: {e}")
+    if args.skip:
+        period = f"{args.days} يوم قديمة (من {args.days + args.skip} لـ {args.skip} يوم فات)"
+    else:
+        period = f"آخر {args.days} يوم"
     print("replaying...")
     if args.sweep:
         results = sweep(history, tags)
         print(sweep_text(results, args.days, len(history)))
-        notify.send(sweep_message(results, args.days, len(history)))
+        notify.send(sweep_message(results, period, len(history)))
     else:
-        sim = run(history, tags)
+        hourly = config.INTERVAL == "1h"
+        sim = run({s: to_hourly(cs) for s, cs in history.items()} if hourly else history, tags,
+                  bars_per_hour=1 if hourly else 4)
         print(summary(sim, 100.0, args.days, len(history)))
-        notify.send(summary_message(sim, 100.0, args.days, len(history)))
+        notify.send(summary_message(sim, 100.0, period, len(history)))
 
 
 if __name__ == "__main__":
