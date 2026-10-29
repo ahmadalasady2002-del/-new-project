@@ -96,6 +96,15 @@ def history(symbol, interval, days, skip_days=0):
     return [out[t] for t in sorted(out)]
 
 
+def listing_time(symbol):
+    """When the pair started trading (unix seconds), or 0 if it is over 1000 days old."""
+    rows = bybit_public("/v5/market/kline", {"category": "spot", "symbol": symbol, "interval": "D",
+                                             "limit": 1000})["list"]
+    if not rows or len(rows) >= 1000:
+        return 0
+    return int(rows[-1][0]) // 1000  # newest first, so the last row is the first day
+
+
 def trending_symbols():
     """Coins people are searching for most on CoinGecko right now."""
     try:

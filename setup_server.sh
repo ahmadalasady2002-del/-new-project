@@ -86,11 +86,29 @@ done
 systemctl restart bot
 echo "OK: Telegram connected. You will get a message now."
 EOF
+cat > /usr/local/bin/bot-mode <<'EOF'
+#!/bin/bash
+# Switch strategy: bot-mode meme | lotto | safe
+set -e
+M="$1"
+case "$M" in meme|lotto|safe) ;; *) echo "use: bot-mode meme | lotto | safe"; exit 1;; esac
+cd /opt/bot
+if grep -q '^LIVE_TRADING=yes' .env && [ -f state.json ] && \
+   python3 -c "import json,sys; sys.exit(1 if json.load(open('state.json'))['positions'] else 0)"; then :
+elif grep -q '^LIVE_TRADING=yes' .env && [ -f state.json ]; then
+  echo "The bot holds coins right now. Wait until it sells them, then switch."; exit 1
+fi
+if grep -q '^STRATEGY=' .env; then sed -i "s|^STRATEGY=.*|STRATEGY=$M|" .env; else echo "STRATEGY=$M" >> .env; fi
+# Paper money starts fresh in the new mode.
+if ! grep -q '^LIVE_TRADING=yes' .env && [ -f state.json ]; then mv state.json "state_old_$(date +%s).json"; fi
+systemctl restart bot
+echo "OK: bot is now in $M mode"
+EOF
 cat > /usr/local/bin/bot-stop <<EOF
 #!/bin/bash
 systemctl stop bot && echo "bot stopped (open positions stay as they are)"
 EOF
-chmod +x /usr/local/bin/bot-report /usr/local/bin/bot-log /usr/local/bin/bot-live /usr/local/bin/bot-stop /usr/local/bin/bot-update /usr/local/bin/bot-test /usr/local/bin/bot-telegram
+chmod +x /usr/local/bin/bot-report /usr/local/bin/bot-log /usr/local/bin/bot-live /usr/local/bin/bot-stop /usr/local/bin/bot-update /usr/local/bin/bot-test /usr/local/bin/bot-telegram /usr/local/bin/bot-mode
 
 systemctl daemon-reload
 systemctl enable bot

@@ -4,6 +4,7 @@
   python -m bot.backtest --days 60
   python -m bot.backtest --sweep      # compare strategy variants on the same data
   python -m bot.backtest --days 60 --skip 60   # the 60 days before the last 60 (unseen data)
+  python -m bot.backtest --lotto --days 120     # lottery mode on every coin listed in that window
 
 Rules match the live bot: same signals, sizes, stops, take-profit and loss limits.
 Stops fill at the stop price (or the open, if price gapped through it), and every
@@ -14,7 +15,9 @@ import argparse
 from contextlib import contextmanager
 from datetime import datetime, timezone
 
-from . import config, data, notify, strategy
+import time
+
+from . import config, data, lotto, notify, strategy
 
 SLIPPAGE = 0.002  # meme order books are thin
 
@@ -30,15 +33,17 @@ class Sim:
         self.day = None
         self.day_start = cash
         self.halted = False
+        self.opened = 0
 
-    def buy(self, sym, usdt, price, sig, ts, stop_dist):
+    def buy(self, sym, usdt, price, sig, ts, stop_dist, **extra):
         fill = price * (1 + SLIPPAGE)
         qty = usdt * (1 - config.FEE_RATE) / fill
         self.cash -= usdt
+        self.opened += 1
         entry = usdt / qty
         self.positions[sym] = {"qty": qty, "cost": usdt, "entry": entry, "atr": sig.atr,
                                "highest": entry, "stop": entry * (1 - stop_dist),
-                               "opened": ts, "reason": sig.reason, "tp_done": False}
+                               "opened": ts, "reason": sig.reason, "tp_done": False, **extra}
 
     def sell(self, sym, share, price, ts, why):
         pos = self.positions[sym]
@@ -46,7 +51,8 @@ class Sim:
         proceeds = qty * price * (1 - SLIPPAGE) * (1 - config.FEE_RATE)
         self.cash += proceeds
         self.trades.append({"symbol": sym, "opened": pos["opened"], "closed": ts, "pnl": proceeds - cost,
-                            "pct": proceeds / cost - 1, "why": why, "setup": pos["reason"]})
+                            "pct": proceeds / cost - 1, "why": why, "setup": pos["reason"],
+                            "peak": pos["highest"] / pos["entry"]})
         if share >= 1:
             del self.positions[sym]
             self.cooldown[sym] = ts
@@ -56,6 +62,12 @@ class Sim:
 
     def manage(self, sym, c):
         pos = self.positions[sym]
+        if pos.get("lotto"):
+            for share, fill, why in lotto.exits(pos, c, c["time"] + 3600):
+                self.sell(sym, share, fill, c["time"], why)
+                if share >= 1:
+                    return
+            return
         if c["low"] <= pos["stop"]:
             self.sell(sym, 1, min(pos["stop"], c["open"]), c["time"], "stop")
             return
@@ -177,6 +189,112 @@ def summary(sim, start_cash, days, n_coins):
             when = datetime.fromtimestamp(t["opened"], timezone.utc).strftime("%m-%d %H:%M")
             lines.append(f"  {label:<5} {when} {t['symbol']:<14} {t['pnl']:+7.2f} ({t['pct']:+.0%}) {t['why']}")
     return "\n".join(lines)
+
+
+def pick_new_listings(days, skip):
+    """Every USDT pair that started trading inside the test window, with its listing time."""
+    end = int(time.time()) - skip * 86400
+    start = end - days * 86400
+    syms = [t["symbol"] for t in data.tickers_24h()
+            if t["symbol"].endswith("USDT") and t["symbol"][:-4] not in config.STABLECOINS]
+    print(f"checking listing dates of {len(syms)} coins...")
+    listed = {}
+    for sym in syms:
+        try:
+            ts = data.listing_time(sym)
+        except Exception:
+            continue
+        if start <= ts <= end - config.LOTTO_WAIT_HOURS * 3600:
+            listed[sym] = ts
+    return listed, end
+
+
+def run_lotto(history, listed, start_cash=100.0):
+    sim = Sim(start_cash)
+    index = {s: {c["time"]: i for i, c in enumerate(cs)} for s, cs in history.items()}
+    last = {}
+    for ts in sorted({c["time"] for cs in history.values() for c in cs}):
+        for sym in list(sim.positions):
+            i = index[sym].get(ts)
+            if i is not None:
+                sim.manage(sym, history[sym][i])
+        for sym, cs in history.items():
+            i = index[sym].get(ts)
+            if i is not None:
+                last[sym] = cs[i]["close"]
+        eq = sim.equity(last)
+        slots = config.MAX_POSITIONS - len(sim.positions)
+        if slots <= 0 or not sim.can_buy(eq, ts):
+            continue
+        signals = []
+        for sym, cs in history.items():
+            i = index[sym].get(ts)
+            if i is None or sym in sim.positions or sym in sim.cooldown:
+                continue
+            day_volume = sum(c["volume"] * c["close"] for c in cs[max(0, i - 23):i + 1])
+            if day_volume < config.MIN_QUOTE_VOLUME:
+                continue
+            sig = lotto.evaluate(sym, cs[:i + 1], listed[sym], ts + 3600)
+            if sig:
+                signals.append(sig)
+        signals.sort(key=lambda s: s.score, reverse=True)
+        for sig in signals[:slots]:
+            usdt = min(eq * config.MAX_POSITION_PCT, sim.cash * 0.99)
+            if usdt < config.MIN_ORDER_USDT:
+                break
+            sim.buy(sig.symbol, usdt, sig.price, sig, ts, config.LOTTO_STOP, lotto=True)
+            sim.cooldown[sig.symbol] = ts  # one ticket per coin
+    for sym in list(sim.positions):
+        sim.sell(sym, 1, last[sym], ts, "end")
+    return sim
+
+
+def lotto_message(sim, start_cash, period, n_listed):
+    tickets = {}
+    for t in sim.trades:
+        k = (t["symbol"], t["opened"])
+        pnl, peak = tickets.get(k, (0, 0))
+        tickets[k] = (pnl + t["pnl"], max(peak, t["peak"]))
+    hit3 = sum(peak >= 3 for _, peak in tickets.values())
+    hit10 = sum(peak >= 10 for _, peak in tickets.values())
+    lost = sum(pnl <= 0 for pnl, _ in tickets.values())
+    change = sim.cash / start_cash - 1
+    lines = [
+        f"🎟 جربت وضع اليانصيب على {period}",
+        f"🆕 نزلت على Bybit بهالفترة {n_listed} عملة جديدة",
+        "",
+        f"💵 الـ {money(start_cash)}$ صارت {money(sim.cash)}$",
+        f"{'📈 ربح' if change > 0 else '📉 خسارة'} {abs(change):.1%}",
+        "",
+        f"🎟 اشترى {len(tickets)} تذكرة:",
+        f"    💥 {hit3} وصلت 3 أضعاف أو أكثر",
+        f"    🚀 {hit10} وصلت 10 أضعاف أو أكثر",
+        f"    ❌ {lost} خسرت",
+        f"⚠️ أكبر نزلة بالرصيد: {sim.max_dd:.1%}",
+    ]
+    if tickets:
+        (sym, _), (pnl, peak) = max(tickets.items(), key=lambda kv: kv[1][1])
+        lines.append(f"🏆 أحسن تذكرة: {sym[:-4]} وصلت {peak:.1f} أضعاف (ربح {pnl:+.2f}$)")
+    lines += ["", "✅ الخلاصة: اليانصيب ربح بهالفترة" if change > 0 else "❌ الخلاصة: اليانصيب خسر بهالفترة"]
+    return "\n".join(lines)
+
+
+def main_lotto(args):
+    config.load("lotto")
+    listed, end = pick_new_listings(args.days, args.skip)
+    print(f"{len(listed)} new listings, downloading their 1h candles...")
+    history = {}
+    for sym, ts in listed.items():
+        try:
+            days = int((end - ts) / 86400) + 2
+            history[sym] = [c for c in data.history(sym, "1h", days, args.skip) if c["time"] >= ts]
+        except Exception as e:
+            print(f"  skip {sym}: {e}")
+    history = {s: cs for s, cs in history.items() if cs}
+    period = f"آخر {args.days} يوم" if not args.skip else f"{args.days} يوم قديمة (من {args.days + args.skip} لـ {args.skip} يوم فات)"
+    sim = run_lotto(history, listed)
+    print(summary(sim, 100.0, args.days, len(history)))
+    notify.send(lotto_message(sim, 100.0, period, len(history)))
 
 
 def to_hourly(candles):
@@ -314,7 +432,10 @@ def main():
     ap.add_argument("--skip", type=int, default=0, help="end the test this many days ago")
     ap.add_argument("--coins", type=int, default=40)
     ap.add_argument("--sweep", action="store_true", help="compare strategy variants")
+    ap.add_argument("--lotto", action="store_true", help="test lottery mode on new listings")
     args = ap.parse_args()
+    if args.lotto:
+        return main_lotto(args)
     tags = pick_symbols(args.coins)
     # Always fetch 15m: the sweep needs it, and 1h candles are built from it.
     print(f"downloading {len(tags)} coins x {args.days} days of 15m candles...")

@@ -18,6 +18,7 @@ class Signal:
     reason: str
     tags: tuple = ()
     vol_ratio: float = 0.0
+    age_h: float = 0.0  # hours since listing (lotto)
 
 
 def market_regime(btc_candles, fng):

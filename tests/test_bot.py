@@ -271,3 +271,101 @@ class SweepTests(unittest.TestCase):
         with backtest.overrides({"MOMENTUM_VOL_MULT": 99}):
             self.assertEqual(config.MOMENTUM_VOL_MULT, 99)
         self.assertEqual(config.MOMENTUM_VOL_MULT, before)
+
+
+def listing_candles(hours, breakout_at=None, path=None):
+    """1h candles from a listing: wild first 6h, then a calm range around 1.0."""
+    t0 = 1_700_000_000 - 1_700_000_000 % 3600
+    out = []
+    for h in range(hours):
+        if h < 6:
+            p, hi, vol = 1.5, 3.0, 5000  # listing spike; must be ignored
+        else:
+            p = 1.0 + 0.02 * math.sin(h)
+            hi, vol = p * 1.01, 1000
+        if path and h in path:
+            p = path[h]
+            hi = p * 1.01
+        if breakout_at == h:
+            p, hi, vol = 1.2, 1.21, 5000
+        out.append({"time": t0 + h * 3600, "open": p, "high": hi, "low": p * 0.99, "close": p, "volume": vol})
+    return t0, out
+
+
+class LottoTests(unittest.TestCase):
+    def setUp(self):
+        config.load("lotto")
+
+    def tearDown(self):
+        config.load("safe")
+
+    def test_entry_after_first_day_on_breakout(self):
+        from bot import lotto
+        t0, cs = listing_candles(31, breakout_at=30)
+        sig = lotto.evaluate("NEWUSDT", cs, t0, cs[-1]["time"] + 3600)
+        self.assertIsNotNone(sig)
+        self.assertIn("lotto", sig.tags)
+        self.assertAlmostEqual(sig.age_h, 31)
+        t0, early = listing_candles(20, breakout_at=19)
+        self.assertIsNone(lotto.evaluate("NEWUSDT", early, t0, early[-1]["time"] + 3600))
+        t0, calm = listing_candles(31)
+        self.assertIsNone(lotto.evaluate("NEWUSDT", calm, t0, calm[-1]["time"] + 3600))
+
+    def test_ladder_trail_and_stop(self):
+        from bot import lotto
+        def c(p):
+            return {"open": p, "high": p, "low": p, "close": p}
+        pos = {"entry": 1.0, "highest": 1.0, "opened": 0}
+        self.assertEqual(lotto.exits(pos, c(0.5), 10), [])  # -50% is inside the 60% stop
+        self.assertEqual(lotto.exits(dict(pos), c(0.39), 10)[0][2], "stop")
+        acts = lotto.exits(pos, c(3.2), 10)
+        self.assertEqual([(round(s, 3), w) for s, _, w in acts], [(0.333, "x3")])
+        acts = lotto.exits(pos, c(11), 10)
+        self.assertEqual([w for _, _, w in acts], ["x10"])
+        self.assertEqual(lotto.exits(pos, c(6), 10), [])  # 45% off the top: hold
+        self.assertEqual(lotto.exits(pos, c(5.4), 10)[0][2], "trail")
+        # After the first step there is no -60% stop, only the trail.
+        pos2 = {"entry": 1.0, "highest": 1.0, "opened": 0}
+        lotto.exits(pos2, c(3.5), 10)
+        self.assertEqual(lotto.exits(pos2, c(1.7), 10)[0][2], "trail")
+
+    def test_backtest_moonshot_pays_for_losers(self):
+        from bot import backtest
+        history, listed = {}, {}
+        moon = {h: 1.2 * 1.08 ** (h - 30) for h in range(31, 70)}
+        moon.update({h: moon[69] * 0.4 for h in range(70, 80)})
+        for name, path in (("MOONUSDT", moon), ("DEADUSDT", {h: 0.3 for h in range(31, 80)}),
+                           ("FLATUSDT", {})):
+            t0, cs = listing_candles(80, breakout_at=30, path=path)
+            for x in cs:
+                x["volume"] *= 1e3  # enough daily dollar volume
+            history[name], listed[name] = cs, t0
+        sim = backtest.run_lotto(history, listed)
+        whys = {t["why"] for t in sim.trades}
+        self.assertTrue({"x3", "x10", "trail", "stop"} <= whys)
+        self.assertGreater(sim.cash, 100)
+        msg = backtest.lotto_message(sim, 100, "آخر 30 يوم", 3)
+        self.assertIn("🚀 1 وصلت 10 أضعاف", msg)
+        self.assertIn("MOON", msg)
+
+    def test_live_buys_ticket_and_climbs_ladder(self):
+        import tempfile
+        sent = []
+        t0, cs = listing_candles(31, breakout_at=30)
+        state = {"mode": "paper", "positions": {}, "trades": [], "cooldown": {}, "cash": 100.0}
+        tickers = [{"symbol": "NEWUSDT", "quoteVolume": "2e6", "lastPrice": "1.2"},
+                   {"symbol": "OLDUSDT", "quoteVolume": "9e9", "lastPrice": "1"}]
+        broker = PaperBroker(state)
+        with mock.patch.object(data, "listing_time", side_effect=lambda s: t0 if s == "NEWUSDT" else 0), \
+             mock.patch.object(data, "klines", return_value=cs), \
+             mock.patch.object(main.time, "time", return_value=cs[-1]["time"] + 3600), \
+             mock.patch.object(main.notify, "send", side_effect=sent.append):
+            main.find_entries(state, broker, {"NEWUSDT": 1.2}, 100.0, tickers)
+            self.assertTrue(state["positions"]["NEWUSDT"]["lotto"])
+            self.assertAlmostEqual(state["positions"]["NEWUSDT"]["cost"], 7.0)
+            self.assertIn("🎟", sent[-1])
+            entry = state["positions"]["NEWUSDT"]["entry"]
+            main.manage_positions(state, broker, {"NEWUSDT": entry * 3.1})
+        self.assertIn("🎉", sent[-1])
+        self.assertAlmostEqual(state["positions"]["NEWUSDT"]["cost"], 7.0 * 2 / 3)
+        self.assertEqual(state["listed"], {"NEWUSDT": t0, "OLDUSDT": 0})
