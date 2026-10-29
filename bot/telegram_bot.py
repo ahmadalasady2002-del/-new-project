@@ -19,6 +19,7 @@ HELP = """🤖 أوامر البوت
 ⏸ وگف الشراء: ما يشتري شي جديد، بس يكمل يدير العملات اللي عنده
 ▶️ كمّل الشراء: يرجع يشتري
 🧪 اختبار: يجرب الوضع الحالي على أسعار آخر 30 يوم
+🎟 اختبار اليانصيب: يجرب اليانصيب على آخر 120 يوم
 
 أوامر تكتبها:
 /mode lotto أو /mode meme أو /mode safe: يغيّر الوضع
@@ -27,7 +28,8 @@ HELP = """🤖 أوامر البوت
 
 BUTTONS = {
     "📊 الحالة": "/status", "📜 الصفقات": "/trades", "⏸ وگف الشراء": "/pause",
-    "▶️ كمّل الشراء": "/resume", "🧪 اختبار": "/test", "❓ مساعدة": "/help",
+    "▶️ كمّل الشراء": "/resume", "🧪 اختبار": "/test", "🎟 اختبار اليانصيب": "/test lotto",
+    "❓ مساعدة": "/help",
 }
 
 
@@ -85,6 +87,13 @@ class Commands:
 
     def guess(self, text):
         """Plain questions like "كم المبلغ الحالي" map to the matching button."""
+        lotto_words = ("يانصيب", "لوتو", "lotto")
+        if any(w in text for w in ("جرب", "اختبر", "اختبار", "تست")):
+            return (lambda _: self.test("lotto")) if any(w in text for w in lotto_words) else self.test
+        if any(w in text for w in ("حول", "حوّل", "غير", "غيّر", "شغل", "شغّل")):
+            for mode, keys in (("lotto", lotto_words), ("meme", ("ميم", "meme")), ("safe", ("هادئ", "هادي", "safe"))):
+                if any(k in text for k in keys):
+                    return lambda _, m=mode: self.mode(m)
         words = {
             self.status: ("مبلغ", "رصيد", "فلوس", "حالة", "شلون", "الوضع", "ربح", "خسر", "كم"),
             self.trades: ("صفقات", "صفقة", "اشترى", "باع"),

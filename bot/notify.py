@@ -10,7 +10,8 @@ log = logging.getLogger("bot")
 
 # Buttons under the chat box; each one sends its own label as a message.
 KEYBOARD = {
-    "keyboard": [["📊 الحالة", "📜 الصفقات"], ["⏸ وگف الشراء", "▶️ كمّل الشراء"], ["🧪 اختبار", "❓ مساعدة"]],
+    "keyboard": [["📊 الحالة", "📜 الصفقات"], ["⏸ وگف الشراء", "▶️ كمّل الشراء"],
+                 ["🧪 اختبار", "🎟 اختبار اليانصيب"], ["❓ مساعدة"]],
     "resize_keyboard": True,
 }
 

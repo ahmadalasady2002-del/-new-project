@@ -417,6 +417,15 @@ class TelegramCommandTests(unittest.TestCase):
         self.assertEqual(self.state["trades"][-1]["why"], "manual")
         self.assertIn("بطلبك", self.sent[-1])
 
+    def test_plain_arabic_requests(self):
+        with mock.patch.object(self.cmd, "test", return_value="T") as t, \
+             mock.patch.object(self.cmd, "mode", return_value="M") as m:
+            self.assertEqual(self.cmd.handle("جرب وضع اليانصيب"), "T")
+            t.assert_called_with("lotto")
+            self.assertEqual(self.cmd.handle("🎟 اختبار اليانصيب"), "T")
+            self.assertEqual(self.cmd.handle("حول البوت لليانصيب"), "M")
+            m.assert_called_with("lotto")
+
     def test_plain_arabic_questions(self):
         self.assertIn("الرصيد", self.cmd.handle("كم المبلغ الحالي"))
         self.assertIn("📜", self.cmd.handle("شنو الصفقات اللي سويتها"))
