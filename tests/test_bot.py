@@ -369,3 +369,77 @@ class LottoTests(unittest.TestCase):
         self.assertIn("🎉", sent[-1])
         self.assertAlmostEqual(state["positions"]["NEWUSDT"]["cost"], 7.0 * 2 / 3)
         self.assertEqual(state["listed"], {"NEWUSDT": t0, "OLDUSDT": 0})
+
+
+class TelegramCommandTests(unittest.TestCase):
+    def setUp(self):
+        import tempfile
+        import threading
+        from bot.telegram_bot import Commands
+        self.tmp = tempfile.TemporaryDirectory()
+        self.p = mock.patch.object(config, "STATE_FILE", Path(self.tmp.name) / "state.json")
+        self.p.start()
+        self.state = {"mode": "paper", "positions": {}, "trades": [], "cooldown": {}, "cash": 70.0,
+                      "start_equity": 100.0, "day_start_equity": 95.0}
+        self.state["positions"]["PEPEUSDT"] = {"qty": 30, "cost": 30, "entry": 1.0, "atr": 0.05, "highest": 1.0,
+                                              "stop": 0.9, "opened": int(time.time()), "reason": "t"}
+        self.cmd = Commands(self.state, PaperBroker(self.state), threading.Lock())
+        self.tickers = mock.patch.object(data, "tickers_24h", return_value=[
+            {"symbol": "PEPEUSDT", "lastPrice": "1.2", "quoteVolume": "1"}])
+        self.tickers.start()
+        self.sent = []
+        self.ns = mock.patch.object(main.notify, "send", side_effect=self.sent.append)
+        self.ns.start()
+
+    def tearDown(self):
+        self.p.stop()
+        self.tickers.stop()
+        self.ns.stop()
+        self.tmp.cleanup()
+
+    def test_status_via_button(self):
+        r = self.cmd.handle("📊 الحالة")
+        self.assertIn("الرصيد: 106.00$", r)
+        self.assertIn("PEPE: +20.0%", r)
+
+    def test_pause_blocks_buying_and_resume(self):
+        self.cmd.handle("⏸ وگف الشراء")
+        self.assertEqual(main.risk_gate(self.state, 100), "paused from Telegram")
+        self.assertTrue(config.STATE_FILE.exists())
+        self.cmd.handle("/resume")
+        self.assertIsNone(main.risk_gate(self.state, 100))
+
+    def test_sellall_needs_confirmation(self):
+        self.assertIn("/sellall yes", self.cmd.handle("/sellall"))
+        self.assertIn("PEPEUSDT", self.state["positions"])
+        self.assertIn("✅", self.cmd.handle("/sellall yes"))
+        self.assertEqual(self.state["positions"], {})
+        self.assertEqual(self.state["trades"][-1]["why"], "manual")
+        self.assertIn("بطلبك", self.sent[-1])
+
+    def test_trades_and_unknown_and_mode_validation(self):
+        self.assertIn("ما سوى", self.cmd.handle("📜 الصفقات"))
+        self.assertIn("/help", self.cmd.handle("شلونك"))
+        self.assertIn("/mode lotto", self.cmd.handle("/mode banana"))
+        self.assertIn("أوامر البوت", self.cmd.handle("/start"))
+
+    def test_only_owner_chat_is_obeyed(self):
+        from bot import telegram_bot
+        batches = [
+            {"result": [{"update_id": 5}]},  # backlog marker, skipped
+            {"result": [{"update_id": 6, "message": {"chat": {"id": 111}, "text": "/sellall"}},
+                        {"update_id": 7, "message": {"chat": {"id": 999}, "text": "/status"}}]},
+        ]
+
+        def fake_api(method, payload, timeout=10):
+            if not batches:
+                raise KeyboardInterrupt  # end the loop
+            return batches.pop(0)
+
+        with mock.patch.object(config, "TELEGRAM_CHAT_ID", "999"), \
+             mock.patch.object(telegram_bot.notify, "api", side_effect=fake_api):
+            with self.assertRaises(KeyboardInterrupt):
+                self.cmd.run()
+        self.assertEqual(len(self.sent), 1)
+        self.assertIn("📊", self.sent[0])
+        self.assertIn("PEPEUSDT", self.state["positions"])  # the stranger's /sellall did nothing

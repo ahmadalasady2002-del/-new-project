@@ -9,6 +9,7 @@ import argparse
 import json
 import logging
 import sys
+import threading
 import time
 from datetime import datetime, timezone
 
@@ -72,7 +73,9 @@ def close_position(state, broker, symbol, price, why):
     del state["positions"][symbol]
     log.info("SELL %s @ %.6g  %s  pnl %+.2f USDT (%+.1f%%)", symbol, price, why, pnl, 100 * pnl / pos["cost"])
     hours = (time.time() - pos["opened"]) / 3600
-    if pos.get("lotto") and why in LOTTO_REASONS:
+    if why == "manual":
+        reason = "بعتها بطلبك من تلگرام"
+    elif pos.get("lotto") and why in LOTTO_REASONS:
         reason = LOTTO_REASONS[why]
     elif why == "time":
         reason = f"ما تحركت خلال {hours:.0f} ساعة"
@@ -170,6 +173,8 @@ def manage_positions(state, broker, px):
 
 def risk_gate(state, eq):
     """Returns None if buying is allowed, otherwise the reason it isn't."""
+    if state.get("paused"):
+        return "paused from Telegram"
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     state.setdefault("start_equity", eq)
     state["peak_equity"] = max(state.get("peak_equity", eq), eq)
@@ -386,12 +391,17 @@ def main():
     broker = make_broker(state)
     log.info("started in %s mode, strategy %s", "LIVE (real money)" if broker.live else "paper", config.STRATEGY)
     notify.send(f"✅ البوت اشتغل ({'فلوس حقيقية' if broker.live else 'فلوس وهمية'}، وضع {config.STRATEGY})")
+    lock = threading.Lock()  # the Telegram thread touches the same state
+    if notify.enabled() and not args.once:
+        from .telegram_bot import Commands
+        threading.Thread(target=Commands(state, broker, lock).run, daemon=True).start()
     while True:
-        try:
-            cycle(state, broker)
-        except Exception:
-            log.exception("cycle failed, will retry")
-        save_state(state)
+        with lock:
+            try:
+                cycle(state, broker)
+            except Exception:
+                log.exception("cycle failed, will retry")
+            save_state(state)
         if args.once:
             break
         time.sleep(config.CYCLE_SECONDS)

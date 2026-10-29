@@ -66,6 +66,8 @@ cat > /usr/local/bin/bot-telegram <<'EOF'
 # Connects Telegram alerts: asks for the BotFather token, then finds your chat id.
 set -e
 read -p "Telegram bot token: " T
+# The running bot reads Telegram messages too; pause it so it doesn't eat the one we wait for.
+systemctl stop bot || true
 echo "Now open your bot in Telegram, press Start and send it any message. Waiting..."
 ID=""
 for i in $(seq 1 60); do
@@ -77,7 +79,7 @@ print(msgs[-1]['chat']['id'] if msgs else '')" 2>/dev/null || true)
   [ -n "$ID" ] && break
   sleep 3
 done
-if [ -z "$ID" ]; then echo "No message received. Run bot-telegram again."; exit 1; fi
+if [ -z "$ID" ]; then echo "No message received. Run bot-telegram again."; systemctl start bot; exit 1; fi
 cd /opt/bot
 for kv in "TELEGRAM_TOKEN=$T" "TELEGRAM_CHAT_ID=$ID"; do
   k="${kv%%=*}"
