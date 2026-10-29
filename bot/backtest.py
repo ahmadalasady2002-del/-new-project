@@ -11,7 +11,7 @@ the result a bit: coins that died during the period aren't in the test.
 import argparse
 from datetime import datetime, timezone
 
-from . import config, data, strategy
+from . import config, data, notify, strategy
 
 SLIPPAGE = 0.002  # meme order books are thin
 
@@ -182,7 +182,9 @@ def main():
             print(f"  skip {sym}: {e}")
     print("replaying...")
     sim = run(history, tags)
-    print(summary(sim, 100.0, args.days, len(history)))
+    text = summary(sim, 100.0, args.days, len(history))
+    print(text)
+    notify.send(f"🧪 نتيجة الاختبار على آخر {args.days} يوم:\n{text}")
 
 
 if __name__ == "__main__":
