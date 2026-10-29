@@ -31,6 +31,8 @@ def _i(name, default):
 BYBIT_BASE = os.getenv("BYBIT_BASE", "https://api.bybit.com")
 API_KEY = os.getenv("BYBIT_API_KEY", "")
 API_SECRET = os.getenv("BYBIT_API_SECRET", "")
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN", "")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
 # Real money only when this is exactly "yes" and keys exist.
 LIVE_TRADING = os.getenv("LIVE_TRADING", "no").lower() == "yes"
 

@@ -12,7 +12,7 @@ import sys
 import time
 from datetime import datetime, timezone
 
-from . import config, data, strategy
+from . import config, data, notify, strategy
 from .broker import BybitBroker, PaperBroker
 
 log = logging.getLogger("bot")
@@ -71,6 +71,9 @@ def close_position(state, broker, symbol, price, why):
     state["cooldown"][symbol] = int(time.time())
     del state["positions"][symbol]
     log.info("SELL %s @ %.6g  %s  pnl %+.2f USDT (%+.1f%%)", symbol, price, why, pnl, 100 * pnl / pos["cost"])
+    reason = {"stop": "وقف الخسارة/الربح", "time": "ما تحركت", "tp": "قبض الربح"}.get(why, why)
+    notify.send(f"{'🟢' if pnl > 0 else '🔴'} بيع {symbol[:-4]} ({reason})\n"
+                f"{'ربح' if pnl > 0 else 'خسارة'}: {pnl:+.2f}$ ({100 * pnl / pos['cost']:+.1f}%)")
 
 
 def take_profit(state, broker, symbol, price):
@@ -92,6 +95,8 @@ def take_profit(state, broker, symbol, price):
     pos["stop"] = max(pos["stop"], pos["entry"] * (1 + 2 * config.FEE_RATE))
     log.info("TAKE %s @ %.6g  sold %.0f%%  pnl %+.2f USDT, rest is risk-free",
              symbol, price, 100 * share, proceeds - cost)
+    notify.send(f"💰 قبض ربح {symbol[:-4]}: باع {100 * share:.0f}% وربح {proceeds - cost:+.2f}$\n"
+                f"الباقي صار بدون خطر")
 
 
 def manage_positions(state, broker, px):
@@ -122,11 +127,16 @@ def risk_gate(state, eq):
     state.setdefault("start_equity", eq)
     state["peak_equity"] = max(state.get("peak_equity", eq), eq)
     if state.get("day") != today:
+        if state.get("day"):
+            change = eq - state["day_start_equity"]
+            notify.send(f"📊 ملخص اليوم: {change:+.2f}$ ({change / state['day_start_equity']:+.1%})\n"
+                        f"الرصيد: {eq:.2f}$ | صفقات مفتوحة: {len(state['positions'])}")
         state["day"], state["day_start_equity"] = today, eq
     if state.get("halted"):
         return "halted"
     if eq <= state["peak_equity"] * (1 - config.MAX_DRAWDOWN):
         state["halted"] = True
+        notify.send(f"⛔ البوت وگف شراء: الرصيد نزل {100 * config.MAX_DRAWDOWN:.0f}% عن أعلى رقم وصله")
         log.error("Equity fell %.0f%% from its peak. Bot stopped buying for good. "
                   "Delete \"halted\" from %s to resume.", 100 * config.MAX_DRAWDOWN, config.STATE_FILE.name)
         return "halted"
@@ -208,6 +218,8 @@ def find_entries(state, broker, px, eq, tickers):
         }
         log.info("BUY  %s @ %.6g  %.2f USDT  stop %.6g  [%s]",
                  sig.symbol, entry, cost, entry * (1 - stop_dist), sig.reason)
+        notify.send(f"🚀 شراء {sig.symbol[:-4]} بـ {cost:.2f}$\n"
+                    f"السعر {entry:.6g} | وقف الخسارة -{100 * stop_dist:.0f}%\n{sig.reason}")
 
 
 def cycle(state, broker):
@@ -251,6 +263,7 @@ def main():
     setup_logging()
     broker = make_broker(state)
     log.info("started in %s mode, strategy %s", "LIVE (real money)" if broker.live else "paper", config.STRATEGY)
+    notify.send(f"✅ البوت اشتغل ({'فلوس حقيقية' if broker.live else 'فلوس وهمية'}، وضع {config.STRATEGY})")
     while True:
         try:
             cycle(state, broker)

@@ -215,3 +215,40 @@ class MemeTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class BacktestTests(unittest.TestCase):
+    def test_pump_bought_and_profit_taken(self):
+        from bot import backtest
+        # Calm drift, then a breakout on huge volume that keeps running, then a dump.
+        closes = [1.0 * (1.0005 ** i) * (1 + 0.01 * math.sin(i / 2)) for i in range(150)]
+        breakout = max(closes[-12:]) * 1.04
+        closes += [breakout * 1.03 ** k for k in range(8)] + [breakout * 0.8] * 20
+        vols = [1000] * 150 + [8000] * 8 + [1000] * 20
+        hist = {"XUSDT": candles_from(closes, vols)}
+        with mock.patch.multiple(config, STRATEGY="meme", TAKE_PROFIT_PCT=0.10, TAKE_PROFIT_SHARE=0.5,
+                                 MAX_ATR_PCT=0.15, STOP_ATR=2.5, TRAIL_START_ATR=2.0, MIN_STOP_PCT=0.04,
+                                 MAX_STOP_PCT=0.12, RISK_PER_TRADE=0.03, MAX_POSITION_PCT=0.30):
+            sim = backtest.run(hist, {"XUSDT": ["meme"]})
+        whys = [t["why"] for t in sim.trades]
+        self.assertIn("tp", whys)
+        self.assertGreater(sim.cash, 100)
+        self.assertEqual(sim.positions, {})
+        self.assertIn("end balance", backtest.summary(sim, 100, 1, 1))
+
+    def test_history_pages_until_start(self):
+        now = int(time.time()) // 900 * 900
+        pages = []
+
+        def fake(path, params):
+            end = params["end"] // 1000
+            rows = [[str((end // 900 * 900 - k * 900) * 1000), "1", "1", "1", "1", "1", "1"] for k in range(1, 1001)]
+            pages.append(end)
+            return {"list": rows}
+
+        with mock.patch.object(data, "bybit_public", side_effect=fake):
+            h = data.history("X", "15m", 15)
+        self.assertEqual(len(pages), 2)
+        self.assertTrue(all(a["time"] < b["time"] for a, b in zip(h, h[1:])))
+        self.assertGreaterEqual(h[0]["time"], now - 15 * 86400)
+        self.assertLessEqual(h[-1]["time"] + 900, time.time())

@@ -73,6 +73,28 @@ def klines(symbol, interval=None, limit=250):
     return candles
 
 
+def history(symbol, interval, days):
+    """Closed candles for the last `days` days, oldest first (Bybit pages 1000 at a time)."""
+    step = INTERVAL_SECONDS[interval]
+    start = int(time.time()) - days * 86400
+    end_ms = int(time.time() * 1000)
+    out = {}
+    while True:
+        rows = bybit_public("/v5/market/kline", {
+            "category": "spot", "symbol": symbol, "interval": BYBIT_INTERVALS[interval],
+            "limit": 1000, "end": end_ms,
+        })["list"]
+        for r in rows:
+            t = int(r[0]) // 1000
+            if t >= start and t + step <= time.time():
+                out[t] = {"time": t, "open": float(r[1]), "high": float(r[2]), "low": float(r[3]),
+                          "close": float(r[4]), "volume": float(r[5])}
+        if len(rows) < 1000 or int(rows[-1][0]) // 1000 <= start:
+            break
+        end_ms = int(rows[-1][0]) - 1
+    return [out[t] for t in sorted(out)]
+
+
 def trending_symbols():
     """Coins people are searching for most on CoinGecko right now."""
     try:
