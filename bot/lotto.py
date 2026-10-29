@@ -11,6 +11,11 @@ from .strategy import Signal
 def evaluate(symbol, candles, listed, now):
     """1h candles since listing. Buy when a coin that survived its first day
     breaks above everything it did after the opening hours, on rising volume."""
+    if not candles:
+        return None
+    # `listed` comes from the daily candle (midnight); the first hourly candle is the real listing hour.
+    # For coins older than the candle window this only moves `listed` later, and they are too old anyway.
+    listed = max(listed, candles[0]["time"])
     age_h = (now - listed) / 3600
     if not config.LOTTO_WAIT_HOURS <= age_h <= config.LOTTO_MAX_AGE_DAYS * 24:
         return None

@@ -74,12 +74,26 @@ class Commands:
             "/start": lambda _: HELP,
         }.get(cmd)
         if not handler:
+            handler = self.guess(text)
+        if not handler:
             return "ما فهمت 🤔 دوس أحد الأزرار، أو اكتب /help"
         try:
             return handler(arg.strip().lower())
         except Exception as e:
             log.exception("command %s failed", cmd)
             return f"⚠️ صار خطأ: {e}"
+
+    def guess(self, text):
+        """Plain questions like "كم المبلغ الحالي" map to the matching button."""
+        words = {
+            self.status: ("مبلغ", "رصيد", "فلوس", "حالة", "شلون", "الوضع", "ربح", "خسر", "كم"),
+            self.trades: ("صفقات", "صفقة", "اشترى", "باع"),
+            (lambda _: HELP): ("مساعدة", "اوامر", "أوامر", "شتسوي", "شنو تگدر"),
+        }
+        for handler, keys in words.items():
+            if any(k in text for k in keys):
+                return handler
+        return None
 
     def status(self, _):
         px = {t["symbol"]: float(t["lastPrice"]) for t in data.tickers_24h()}

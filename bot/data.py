@@ -24,8 +24,8 @@ def get_json(url, params=None, headers=None, tries=3, timeout=15):
             with urllib.request.urlopen(req, timeout=timeout) as resp:
                 return json.loads(resp.read().decode())
         except urllib.error.HTTPError as e:
-            # 4xx (except rate limits) won't fix themselves on retry
-            if e.code < 500 and e.code != 429:
+            # 4xx won't fix themselves on retry, except rate limits (Bybit's CDN answers 403 for those)
+            if e.code < 500 and e.code not in (403, 429):
                 raise
             last = e
         except (urllib.error.URLError, TimeoutError) as e:
@@ -34,11 +34,18 @@ def get_json(url, params=None, headers=None, tries=3, timeout=15):
     raise last
 
 
-def bybit_public(path, params):
-    data = get_json(f"{config.BYBIT_BASE}{path}", params)
-    if data.get("retCode") != 0:
-        raise RuntimeError(f"Bybit {path}: {data.get('retMsg')}")
-    return data["result"]
+RATE_LIMITED = {10006, 10018}  # Bybit: too many requests
+
+
+def bybit_public(path, params, tries=4):
+    for attempt in range(tries):
+        data = get_json(f"{config.BYBIT_BASE}{path}", params)
+        if data.get("retCode") == 0:
+            return data["result"]
+        if data.get("retCode") not in RATE_LIMITED:
+            break
+        time.sleep(1 + 2 * attempt)
+    raise RuntimeError(f"Bybit {path}: {data.get('retMsg')}")
 
 
 def tickers_24h():

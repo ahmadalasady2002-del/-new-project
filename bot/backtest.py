@@ -198,15 +198,19 @@ def pick_new_listings(days, skip):
     syms = [t["symbol"] for t in data.tickers_24h()
             if t["symbol"].endswith("USDT") and t["symbol"][:-4] not in config.STABLECOINS]
     print(f"checking listing dates of {len(syms)} coins...")
-    listed = {}
+    listed, failed = {}, []
     for sym in syms:
+        time.sleep(0.05)  # stay well under Bybit's rate limit
         try:
             ts = data.listing_time(sym)
-        except Exception:
+        except Exception as e:
+            failed.append(sym)
+            print(f"  could not check {sym}: {e}")
             continue
         if start <= ts <= end - config.LOTTO_WAIT_HOURS * 3600:
             listed[sym] = ts
-    return listed, end
+    print(f"checked {len(syms) - len(failed)}/{len(syms)}, {len(listed)} listed in the window")
+    return listed, end, len(syms), len(failed)
 
 
 def run_lotto(history, listed, start_cash=100.0):
@@ -249,7 +253,7 @@ def run_lotto(history, listed, start_cash=100.0):
     return sim
 
 
-def lotto_message(sim, start_cash, period, n_listed):
+def lotto_message(sim, start_cash, period, n_listed, checked=None, failed=0):
     tickets = {}
     for t in sim.trades:
         k = (t["symbol"], t["opened"])
@@ -261,7 +265,12 @@ def lotto_message(sim, start_cash, period, n_listed):
     change = sim.cash / start_cash - 1
     lines = [
         f"🎟 جربت وضع اليانصيب على {period}",
-        f"🆕 نزلت على Bybit بهالفترة {n_listed} عملة جديدة",
+        f"🆕 نزلت على Bybit بهالفترة {n_listed} عملة جديدة"
+        + (f" (فحصت {checked} عملة)" if checked else ""),
+    ]
+    if failed:
+        lines.append(f"⚠️ ما گدرت أفحص {failed} عملة، فالنتيجة ناقصة شوية")
+    lines += [
         "",
         f"💵 الـ {money(start_cash)}$ صارت {money(sim.cash)}$",
         f"{'📈 ربح' if change > 0 else '📉 خسارة'} {abs(change):.1%}",
@@ -281,7 +290,7 @@ def lotto_message(sim, start_cash, period, n_listed):
 
 def main_lotto(args):
     config.load("lotto")
-    listed, end = pick_new_listings(args.days, args.skip)
+    listed, end, checked, failed = pick_new_listings(args.days, args.skip)
     print(f"{len(listed)} new listings, downloading their 1h candles...")
     history = {}
     for sym, ts in listed.items():
@@ -294,7 +303,7 @@ def main_lotto(args):
     period = f"آخر {args.days} يوم" if not args.skip else f"{args.days} يوم قديمة (من {args.days + args.skip} لـ {args.skip} يوم فات)"
     sim = run_lotto(history, listed)
     print(summary(sim, 100.0, args.days, len(history)))
-    notify.send(lotto_message(sim, 100.0, period, len(history)))
+    notify.send(lotto_message(sim, 100.0, period, len(history), checked, failed))
 
 
 def to_hourly(candles):

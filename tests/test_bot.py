@@ -302,7 +302,7 @@ class LottoTests(unittest.TestCase):
     def test_entry_after_first_day_on_breakout(self):
         from bot import lotto
         t0, cs = listing_candles(31, breakout_at=30)
-        sig = lotto.evaluate("NEWUSDT", cs, t0, cs[-1]["time"] + 3600)
+        sig = lotto.evaluate("NEWUSDT", cs, t0 - 10 * 3600, cs[-1]["time"] + 3600)  # midnight-based date
         self.assertIsNotNone(sig)
         self.assertIn("lotto", sig.tags)
         self.assertAlmostEqual(sig.age_h, 31)
@@ -417,9 +417,13 @@ class TelegramCommandTests(unittest.TestCase):
         self.assertEqual(self.state["trades"][-1]["why"], "manual")
         self.assertIn("بطلبك", self.sent[-1])
 
+    def test_plain_arabic_questions(self):
+        self.assertIn("الرصيد", self.cmd.handle("كم المبلغ الحالي"))
+        self.assertIn("📜", self.cmd.handle("شنو الصفقات اللي سويتها"))
+
     def test_trades_and_unknown_and_mode_validation(self):
         self.assertIn("ما سوى", self.cmd.handle("📜 الصفقات"))
-        self.assertIn("/help", self.cmd.handle("شلونك"))
+        self.assertIn("/help", self.cmd.handle("هلو"))
         self.assertIn("/mode lotto", self.cmd.handle("/mode banana"))
         self.assertIn("أوامر البوت", self.cmd.handle("/start"))
 
@@ -443,3 +447,16 @@ class TelegramCommandTests(unittest.TestCase):
         self.assertEqual(len(self.sent), 1)
         self.assertIn("📊", self.sent[0])
         self.assertIn("PEPEUSDT", self.state["positions"])  # the stranger's /sellall did nothing
+
+
+class RateLimitTests(unittest.TestCase):
+    def test_bybit_rate_limit_is_retried(self):
+        replies = [{"retCode": 10006, "retMsg": "Too many visits"}, {"retCode": 0, "result": {"ok": 1}}]
+        with mock.patch.object(data, "get_json", side_effect=lambda *a, **k: replies.pop(0)), \
+             mock.patch.object(data.time, "sleep"):
+            self.assertEqual(data.bybit_public("/x", {}), {"ok": 1})
+
+    def test_other_errors_fail_fast(self):
+        with mock.patch.object(data, "get_json", return_value={"retCode": 10001, "retMsg": "bad symbol"}):
+            with self.assertRaises(RuntimeError):
+                data.bybit_public("/x", {})
