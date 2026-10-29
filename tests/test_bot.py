@@ -144,6 +144,29 @@ class LoopTests(unittest.TestCase):
         self.assertEqual(main.risk_gate(state, 120), "halted")
 
 
+class TakeProfitTests(unittest.TestCase):
+    def test_half_sold_at_target_rest_risk_free(self):
+        state = {"positions": {}, "trades": [], "cooldown": {}, "cash": 70.0}
+        state["positions"]["XUSDT"] = {"qty": 30, "cost": 30, "entry": 1.0, "atr": 0.05, "highest": 1.0,
+                                      "stop": 0.95, "opened": int(time.time()), "reason": "t"}
+        broker = PaperBroker(state)
+        with mock.patch.object(config, "TAKE_PROFIT_PCT", 0.10):
+            main.manage_positions(state, broker, {"XUSDT": 1.11})
+            pos = state["positions"]["XUSDT"]
+            self.assertAlmostEqual(pos["qty"], 15)
+            self.assertAlmostEqual(pos["cost"], 15)
+            self.assertGreater(pos["stop"], 1.0)
+            self.assertEqual(state["trades"][-1]["why"], "tp")
+            self.assertGreater(state["trades"][-1]["pnl"], 1.5)
+            # Second touch of the target doesn't sell again; a drop exits the rest at break-even.
+            main.manage_positions(state, broker, {"XUSDT": 1.12})
+            self.assertEqual(len(state["trades"]), 1)
+            main.manage_positions(state, broker, {"XUSDT": 0.99})
+        self.assertNotIn("XUSDT", state["positions"])
+        # Price gapped through the break-even stop, so the rest lost a little; the trade is still a win.
+        self.assertGreater(sum(t["pnl"] for t in state["trades"]), 1.0)
+
+
 def pump_candles(n=120, jump=1.04, vol_mult=6):
     """Sideways-up 15m chart that breaks out on a volume spike in the last candle."""
     closes = [1.0 * (1.0005 ** i) * (1 + 0.01 * math.sin(i / 2)) for i in range(n)]

@@ -73,6 +73,27 @@ def close_position(state, broker, symbol, price, why):
     log.info("SELL %s @ %.6g  %s  pnl %+.2f USDT (%+.1f%%)", symbol, price, why, pnl, 100 * pnl / pos["cost"])
 
 
+def take_profit(state, broker, symbol, price):
+    """Sell part of a winner to lock the gain, and make the rest risk-free."""
+    pos = state["positions"][symbol]
+    pos["tp_done"] = True
+    share = config.TAKE_PROFIT_SHARE
+    proceeds = broker.sell(symbol, pos["qty"] * share, price)
+    if proceeds == 0:
+        return  # too small to split; the trailing stop handles the whole position
+    cost = pos["cost"] * share
+    state["trades"].append({
+        "symbol": symbol, "opened": pos["opened"], "closed": int(time.time()),
+        "entry": pos["entry"], "exit": price, "cost": round(cost, 4),
+        "proceeds": round(proceeds, 4), "pnl": round(proceeds - cost, 4), "why": "tp", "setup": pos["reason"],
+    })
+    pos["qty"] *= 1 - share
+    pos["cost"] -= cost
+    pos["stop"] = max(pos["stop"], pos["entry"] * (1 + 2 * config.FEE_RATE))
+    log.info("TAKE %s @ %.6g  sold %.0f%%  pnl %+.2f USDT, rest is risk-free",
+             symbol, price, 100 * share, proceeds - cost)
+
+
 def manage_positions(state, broker, px):
     now = time.time()
     for symbol in list(state["positions"]):
@@ -81,6 +102,9 @@ def manage_positions(state, broker, px):
         if price is None:
             continue
         pos["highest"] = max(pos["highest"], price)
+        if (config.TAKE_PROFIT_PCT and not pos.get("tp_done")
+                and price >= pos["entry"] * (1 + config.TAKE_PROFIT_PCT)):
+            take_profit(state, broker, symbol, price)
         # Once in profit by TRAIL_START_ATR, the stop follows the price up.
         if pos["highest"] - pos["entry"] >= config.TRAIL_START_ATR * pos["atr"]:
             pos["stop"] = max(pos["stop"], pos["entry"] * (1 + 2 * config.FEE_RATE),
