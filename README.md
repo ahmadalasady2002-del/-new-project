@@ -56,6 +56,7 @@ curl -sSL https://raw.githubusercontent.com/ahmadalasady2002-del/-new-project/cl
 | `bot-report` | الربح والخسارة والصفقات |
 | `bot-log` | آخر شي سواه البوت |
 | `bot-live` | يحوّل البوت لفلوس حقيقية |
+| `bot-update` | يجيب آخر نسخة من البوت ويعيد تشغيله |
 | `bot-stop` | يطفي البوت |
 
 ---

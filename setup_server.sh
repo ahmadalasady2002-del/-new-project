@@ -53,14 +53,19 @@ systemctl restart bot
 sleep 15
 tail -n 8 bot.log
 EOF
+cat > /usr/local/bin/bot-update <<EOF
+#!/bin/bash
+git -C $DIR pull -q && systemctl restart bot && echo "bot updated and restarted"
+EOF
 cat > /usr/local/bin/bot-stop <<EOF
 #!/bin/bash
 systemctl stop bot && echo "bot stopped (open positions stay as they are)"
 EOF
-chmod +x /usr/local/bin/bot-report /usr/local/bin/bot-log /usr/local/bin/bot-live /usr/local/bin/bot-stop
+chmod +x /usr/local/bin/bot-report /usr/local/bin/bot-log /usr/local/bin/bot-live /usr/local/bin/bot-stop /usr/local/bin/bot-update
 
 systemctl daemon-reload
-systemctl enable --now bot
+systemctl enable bot
+systemctl restart bot
 
 echo
 if curl -sf -m 10 https://api.bybit.com/v5/market/time >/dev/null; then

@@ -124,7 +124,8 @@ def find_entries(state, broker, px, eq, tickers):
     trending = data.trending_symbols()
     now = time.time()
     signals = []
-    for symbol in data.build_universe(tickers, trending):
+    universe = data.build_universe(tickers, trending)
+    for symbol in universe:
         if symbol in state["positions"]:
             continue
         if now - state["cooldown"].get(symbol, 0) < config.COOLDOWN_HOURS * 3600:
@@ -137,6 +138,8 @@ def find_entries(state, broker, px, eq, tickers):
         if sig:
             signals.append(sig)
     signals.sort(key=lambda s: s.score, reverse=True)
+    log.info("scanned %d coins, %d signals%s", len(universe), len(signals),
+             f" (best {signals[0].symbol}: {signals[0].reason})" if signals else "")
 
     size_mult = 0.5 if regime == "caution" else 1.0
     for sig in signals[:slots]:
